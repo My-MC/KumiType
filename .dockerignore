@@ -1,0 +1,15 @@
+.venv
+.git
+__pycache__
+*.egg-info
+source
+cache
+build
+dist
+build-*
+dist-*
+wheelhouse
+tests/**/__pycache__
+.ruff_cache
+.pytest_cache
+.venv*

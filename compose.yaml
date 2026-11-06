@@ -1,0 +1,7 @@
+services:
+  builder:
+    build: .
+    user: "${KUMITYPE_UID:-1000}:${KUMITYPE_GID:-1000}"
+    working_dir: /work
+    volumes:
+      - .:/work:z

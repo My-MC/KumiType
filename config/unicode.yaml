@@ -1,0 +1,3 @@
+# Codepoint keys use hexadecimal notation. PUA is always protected.
+# Loaded with build.yaml; inline unicode_overrides takes precedence.
+unicode_overrides: {}

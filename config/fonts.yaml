@@ -1,0 +1,9 @@
+# Supported Japanese source families. Fetch versions and hashes are in sources.lock.toml.
+fonts:
+  plex: {family: IBM Plex Sans JP, output: IBMJP}
+  biz: {family: BIZ UDGothic, output: BIZ}
+  noto: {family: Noto Sans JP, output: Noto}
+  line-seed: {family: LINE Seed JP, output: LINESeed}
+  mplus1: {family: M PLUS 1, output: MPlus1}
+  mplus2: {family: M PLUS 2, output: MPlus2}
+  zen-kaku: {family: Zen Kaku Gothic New, output: ZenKaku}

@@ -1,0 +1,207 @@
+lock_version = 1
+
+[[sources]]
+id = "cascadia"
+version = "2407.24"
+url = "https://github.com/microsoft/cascadia-code/releases/download/v2407.24/CascadiaCode-2407.24.zip"
+sha256 = "e67a68ee3386db63f48b9054bd196ea752bc6a4ebb4df35adce6733da50c8474"
+format = "zip"
+
+[[sources]]
+id = "biz-bold"
+version = "6ce172f74aa355ea43eb964fa4a91570a4d3064d"
+url = "https://raw.githubusercontent.com/google/fonts/6ce172f74aa355ea43eb964fa4a91570a4d3064d/ofl/bizudgothic/BIZUDGothic-Bold.ttf"
+sha256 = "98a528b6b638463041968783cc0f63adaf4cdc26f5398afed68bab712d1113f3"
+format = "ttf"
+filename = "BIZUDGothic-Bold.ttf"
+
+[[sources]]
+id = "biz-regular"
+version = "6ce172f74aa355ea43eb964fa4a91570a4d3064d"
+url = "https://raw.githubusercontent.com/google/fonts/6ce172f74aa355ea43eb964fa4a91570a4d3064d/ofl/bizudgothic/BIZUDGothic-Regular.ttf"
+sha256 = "709fcd41e3209fb765da750472f55ccdf925653e9fa7e1eb007cb65c8f749c75"
+format = "ttf"
+filename = "BIZUDGothic-Regular.ttf"
+
+[[sources]]
+id = "biz-license"
+version = "6ce172f74aa355ea43eb964fa4a91570a4d3064d"
+url = "https://raw.githubusercontent.com/google/fonts/6ce172f74aa355ea43eb964fa4a91570a4d3064d/ofl/bizudgothic/OFL.txt"
+sha256 = "e753d7155d53c747d037a445e584c8ecfca6dd79846db610417e282a736b28bc"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "plex-22-bd8a98b9"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Bold.ttf"
+sha256 = "bd8a98b9b55c9ea3f0fa1ed094c15981788cc9a41b0357f4453014fd1d44da19"
+format = "ttf"
+filename = "IBMPlexSansJP-Bold.ttf"
+
+[[sources]]
+id = "plex-28-83b3a8d9"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-ExtraLight.ttf"
+sha256 = "83b3a8d967295c162938946d6a9395d539c95fd53e161e0e4b01e5d7f39a2ea6"
+format = "ttf"
+filename = "IBMPlexSansJP-ExtraLight.ttf"
+
+[[sources]]
+id = "plex-23-f6390231"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Light.ttf"
+sha256 = "f6390231b0ce848866d5599765897d4b882d6b29dc0484dd4d1a5435b05761ba"
+format = "ttf"
+filename = "IBMPlexSansJP-Light.ttf"
+
+[[sources]]
+id = "plex-24-1d09f5e2"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Medium.ttf"
+sha256 = "1d09f5e25b19e54b2c55da70de58f9962512c3e07ed7c3e1c9bad77ace5c22e6"
+format = "ttf"
+filename = "IBMPlexSansJP-Medium.ttf"
+
+[[sources]]
+id = "plex-25-372f8bba"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Regular.ttf"
+sha256 = "372f8bba95f386856ae435dc0e69f08db1cac29bed513d99171a0ae2d307ba2a"
+format = "ttf"
+filename = "IBMPlexSansJP-Regular.ttf"
+
+[[sources]]
+id = "plex-26-5985c29d"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-SemiBold.ttf"
+sha256 = "5985c29d2d5d444072915cf5874dc80e0a3f5fadbf14a9e3013a03a8fe6d7ff5"
+format = "ttf"
+filename = "IBMPlexSansJP-SemiBold.ttf"
+
+[[sources]]
+id = "plex-22-773042bf"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Thin.ttf"
+sha256 = "773042bf5e8f428d46fcf81b9255c6a451f20cbd39983f308e96808a2e15e134"
+format = "ttf"
+filename = "IBMPlexSansJP-Thin.ttf"
+
+[[sources]]
+id = "plex-license"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/OFL.txt"
+sha256 = "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "noto-20-c2f3b4d4"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf"
+sha256 = "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f"
+format = "ttf"
+filename = "NotoSansJP[wght].ttf"
+
+[[sources]]
+id = "noto-license"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/notosansjp/OFL.txt"
+sha256 = "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "mplus1-16-32dab296"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus1/MPLUS1%5Bwght%5D.ttf"
+sha256 = "32dab296a06c3e87841ecd2bc9912434a964ad541e22ea19f764969dae93fced"
+format = "ttf"
+filename = "MPLUS1[wght].ttf"
+
+[[sources]]
+id = "mplus1-license"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus1/OFL.txt"
+sha256 = "04971e3fcee60b247395150d93b3616f6a0b092572332c96187b472976553abc"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "mplus2-16-2e4f45c2"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus2/MPLUS2%5Bwght%5D.ttf"
+sha256 = "2e4f45c2391355fb03195da4854ffbe85fea49bfdff5cc51020238083af6b75c"
+format = "ttf"
+filename = "MPLUS2[wght].ttf"
+
+[[sources]]
+id = "mplus2-license"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus2/OFL.txt"
+sha256 = "04971e3fcee60b247395150d93b3616f6a0b092572332c96187b472976553abc"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "zen-kaku-license"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/OFL.txt"
+sha256 = "0fac78a235c98d640cb06332eb5362c211d86fa03c011df438c35005d22ad2c7"
+format = "text"
+filename = "OFL.txt"
+
+[[sources]]
+id = "zen-kaku-26-795819a9"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Black.ttf"
+sha256 = "795819a979184981842994d8f4eb9e14ce443d687bd5e731d6ca67ded8f92261"
+format = "ttf"
+filename = "ZenKakuGothicNew-Black.ttf"
+
+[[sources]]
+id = "zen-kaku-25-0081ceda"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Bold.ttf"
+sha256 = "0081cedabc4921982fcd061f845a005664ac7fb642af2dd34b4007bc63ccd235"
+format = "ttf"
+filename = "ZenKakuGothicNew-Bold.ttf"
+
+[[sources]]
+id = "zen-kaku-26-ad4e9733"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Light.ttf"
+sha256 = "ad4e9733f96397ed0c99c295d9b3b56e39a0e0bc02b0ac56ce3ade7793a1eef1"
+format = "ttf"
+filename = "ZenKakuGothicNew-Light.ttf"
+
+[[sources]]
+id = "zen-kaku-27-651a3f72"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Medium.ttf"
+sha256 = "651a3f7280b7f36262601ee76d8388a8dc4372dcc67aff025a608939a562b525"
+format = "ttf"
+filename = "ZenKakuGothicNew-Medium.ttf"
+
+[[sources]]
+id = "zen-kaku-28-b840cd07"
+version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
+url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Regular.ttf"
+sha256 = "b840cd07a67d89cacca44249ae49aa99ee7640eb5ce623be8d8983d6aabac801"
+format = "ttf"
+filename = "ZenKakuGothicNew-Regular.ttf"
+
+[[sources]]
+id = "line-seed"
+version = "20260828"
+url = "https://github.com/line/seed/releases/download/v20260828/seed-v20260828.zip"
+sha256 = "58dee0e2b140c3b3d4769b34059fa7150aee7d3c8326358bd87c0879ef98a5b7"
+format = "zip"
+
+[[sources]]
+id = "cascadia-license"
+version = "2407.24"
+url = "https://raw.githubusercontent.com/microsoft/cascadia-code/v2407.24/LICENSE"
+sha256 = "51882cd3cdba4e16f220f44ddb08a635c38c44ea6e0975db2574f4be6f958238"
+format = "text"
+filename = "LICENSE"

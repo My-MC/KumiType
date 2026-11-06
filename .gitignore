@@ -1,0 +1,35 @@
+# Python / uv environments and generated metadata
+.venv*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Downloaded fonts, caches, build outputs and local verification artifacts
+/source/
+/cache/
+/build*
+/dist*
+/wheelhouse/
+.playwright-cli/
+
+# Font binaries and archives are distributed separately with upstream licenses
+*.ttf
+*.otf
+*.ttc
+*.woff
+*.woff2
+*.zip
+
+# Local configuration, credentials and temporary files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+*.tmp
+.DS_Store

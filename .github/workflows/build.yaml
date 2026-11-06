@@ -1,0 +1,37 @@
+name: Full font build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14.7'
+          enable-cache: true
+          version: "0.13.5"
+      - run: uv sync --locked --extra dev
+      - uses: actions/cache@v4
+        with:
+          path: cache
+          key: sources-${{ hashFiles('config/sources.lock.toml') }}
+      - run: sudo apt-get update && sudo apt-get install -y fontconfig libharfbuzz-bin
+      - run: uv run --locked kumitype fetch
+      - run: uv run --locked kumitype build-all --jobs 2
+      - run: uv run --locked kumitype audit
+      - run: uv run --locked kumitype validate --all --require-harfbuzz
+      - run: uv run --locked kumitype package --all
+      - run: uv run --locked python scripts/check-packages.py
+      - run: uv run --locked python scripts/generate-preview.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: font-build-reports
+          path: |
+            build/build-report.*
+            build/validation-report.*
+            build/shaping-report.json
+            build/preview.html
+            dist/*.zip

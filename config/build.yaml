@@ -1,0 +1,19 @@
+project:
+  name: KumiType
+  version: "0.1.0"
+sources:
+  cascadia:
+    version: "2407.24"
+variants: [code, code-pl, code-nf, mono, mono-pl, mono-nf]
+japanese_fonts: [plex, biz, noto, line-seed, mplus1, mplus2, zen-kaku]
+weights: [200, 300, 350, 400, 600, 700]
+styles: [normal, italic]
+rendering:
+  width_ratio: "1:2"
+  jp_scale: 1.0
+  baseline_offset: 0
+  japanese_italic: upright
+build:
+  output_format: ttf
+  jobs: auto
+  fail_on_error: true
