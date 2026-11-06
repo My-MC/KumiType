@@ -1,60 +1,93 @@
-# ビルド
+# ビルドガイド
 
-Python 3.11以降と仮想環境を使用します。OS別のセットアップスクリプトと
-Docker/Compose/Podmanの利用手順はREADMEにあります。
+[ドキュメント一覧](README.md) · [プロジェクトREADME](../README.md)
+
+## ツールのインストール
+
+OSの選択肢は、ビルドに必要なツールを導入するための案内です。
+ディストリビューションごとのコンテナCIを前提としません。
+PythonとPythonパッケージは、システムのPythonではなくuvで管理します。
+
+| 環境 | セットアップスクリプト |
+| --- | --- |
+| Fedora | `bash scripts/setup-fedora.sh` |
+| AlmaLinux / Rocky Linux / RHEL | `bash scripts/setup-rhel.sh` |
+| Debian / Ubuntu | `bash scripts/setup-debian.sh` |
+
+各スクリプトはシステムツールを導入し、uvでPythonと依存環境を準備します。
+システムツールの導入にはsudo権限が必要です。RHEL系のHarfBuzz CLIは
+有効なリポジトリによって提供状況が異なります。未導入でも合成は実行できます。
+
+uvが導入済みの場合、Python環境だけを準備するには次を実行します。
 
 ```sh
-kumitype fetch
-kumitype build-all --jobs 4
-kumitype validate --all
-kumitype package --all
+uv python install
+uv sync --locked --extra dev
+uv run --locked kumitype doctor
 ```
 
-uvでPythonと依存を準備します。
+Pythonの版は`.python-version`、依存バージョンは`uv.lock`で固定しています。
+
+## フォントの取得と生成
+
+```sh
+uv run --locked kumitype fetch
+uv run --locked kumitype build --base mono-nf --jp plex --weight 400 --style normal
+uv run --locked kumitype build --base code-nf --jp noto --all-weights --all-styles
+uv run --locked kumitype build-all --jobs 4
+```
+
+生成対象と変換設定は`config/build.yaml`、ソースのURL・固定版・SHA-256は
+`config/sources.lock.toml`にあります。既定の生成先は`build/`です。
+並列数autoはCPUと使用可能メモリに基づき制限されます。
+`build.worker_memory_mb`と`build.max_jobs`で上限を調整できます。
+
+## 検証とパッケージ化
+
+```sh
+uv run --locked kumitype audit
+uv run --locked kumitype validate --all
+uv run --locked kumitype package --all
+```
+
+ZIPは`dist/`に保存します。HarfBuzz必須の検証や表示確認は[検証ガイド](VALIDATION.md)を参照してください。
+別の生成先を使う場合は、build-allの`--output-dir`と、検証・パッケージ化の
+`--build-dir`に同じパスを指定します。
+
+## オフライン利用
+
+接続可能な環境で、Python・依存・フォントソースを準備してください。
 
 ```sh
 uv python install
 uv sync --locked --extra dev
 uv run --locked kumitype fetch
-uv run --locked kumitype build-all
-```
-
-オフライン利用の前には、対象環境でPython・依存・ビルドバックエンドをキャッシュしてください。
-
-```sh
-uv sync --locked --extra dev
 uv sync --locked --extra dev --offline
 uv run --locked --offline kumitype build-all
 ```
 
-ソースフォントもfetchで事前準備が必要です。環境が準備済みならビルド自体はネットワークを使用しません。
+`source/`と`cache/`を保持すれば再ダウンロードは不要です。
 
-並列数の既定値autoはCPU数と使用可能メモリ（cgroup制限を含む）で制限します。
-`build.worker_memory_mb`（既定2048）で1処理あたりの見積メモリ、
-`build.max_jobs`で同時処理数の上限を設定できます。
-CLIの--jobsもメモリ上限内で実行されます。
+## Docker / Compose / Podmanで手動実行
 
-出力先と入力配置先を指定できます:
+Dockerは任意のローカル実行方法です。CIの動作確認対象にはしていません。
 
 ```sh
-kumitype build-all --jobs 4 --source-dir source --output-dir build-latest
+docker build -t kumitype-builder:local .
+scripts/docker-build.sh kumitype build-all
+KUMITYPE_UID=$(id -u) KUMITYPE_GID=$(id -g) docker compose run --rm builder kumitype doctor
 ```
 
-既定の出力先はbuild/です。異なるコード版の比較では別ディレクトリを指定してください。
+ラッパーはホストのUID/GIDを引き継ぎ、SELinux有効時に`:z`を付けます。
+Podmanを使う場合は`CONTAINER_RUNTIME=podman scripts/docker-build.sh kumitype build-all`とします。
+
+## Makefile
 
 ```sh
-kumitype audit --build-dir build-latest
-kumitype validate --all --build-dir build-latest
-kumitype package --all --build-dir build-latest --output-dir dist-latest
-python scripts/generate-preview.py --build-dir build-latest
+make fonts JOBS=4
+make verify HARFBUZZ=hb-shape
+make package
 ```
 
-Makefileでも同じCLIを使用します:
-
-```sh
-make fonts BUILD_DIR=build-latest JOBS=4
-make verify BUILD_DIR=build-latest HARFBUZZ=hb-shape
-make package BUILD_DIR=build-latest DIST_DIR=dist-latest
-```
-
-verifyは先に全対象の完全性を監査し、成功した場合のみHarfBuzz必須の検証へ進みます。
+`BUILD_DIR`・`DIST_DIR`で保存先を指定できます。verifyは完全性監査に成功した後、
+HarfBuzz必須の検証を実行します。
