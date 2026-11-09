@@ -4,10 +4,10 @@ import unicodedata
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 
 from .glyph_selector import cell_count, select_codepoints
-from .glyph_transform import transform_glyph
+from .glyph_transform import fit_glyph, transform_glyph
 
 
-def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outline_cache=None, halfwidth_kana_scale=1.0) -> dict:
+def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outline_cache=None, halfwidth_kana_scale=1.0, fit_overflow=True, fit_margin=0.02) -> dict:
     if 'glyf' not in base or 'fvar' in base or 'fvar' in donor:
         raise ValueError('Merge requires a static TrueType base and static donor')
     cmap = base.getBestCmap() or {}
@@ -32,6 +32,7 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
     glyph_set = donor.getGlyphSet()
     added = {}
     overflow = []
+    fitted = []
     for cp in selected:
         name = f'kumitype.u{cp:06X}'
         while name in base['glyf'].glyphs:
@@ -45,10 +46,15 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
                 width, baseline_offset,
                 reverse_direction='glyf' not in donor,
                 horizontal_scale=0.5 if cp in derived_halfwidth else 1)
+            was_fitted = exceeds and fit_overflow
+            if was_fitted:
+                glyph, lsb, exceeds = fit_glyph(glyph, width, fit_margin)
             if outline_cache:
-                outline_cache.put(cp, glyph, lsb, exceeds)
+                outline_cache.put(cp, glyph, lsb, exceeds, was_fitted)
         else:
-            glyph, lsb, exceeds = cached
+            glyph, lsb, exceeds, was_fitted = cached
+        if was_fitted:
+            fitted.append(cp)
         base['glyf'].glyphs[name] = glyph
         base['hmtx'].metrics[name] = (width, lsb)
         order.append(name)
@@ -70,13 +76,13 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
         base['cmap'].tables.append(table)
     base['maxp'].numGlyphs = len(order)
     base['OS/2'].recalcUnicodeRanges(base)
-    return {'derived_halfwidth_codepoints': derived_halfwidth, 'added_codepoints': selected, 'overflow_codepoints': overflow,
+    return {'derived_halfwidth_codepoints': derived_halfwidth, 'added_codepoints': selected, 'overflow_codepoints': overflow, 'fitted_codepoints': fitted,
             'ivs_inherited': False, 'cell_width': cell}
 
 
 def merge_many(base, donors, **options) -> dict:
     """Merge ordered subset sources, importing each Unicode scalar once."""
-    combined = {'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'ivs_inherited': False}
+    combined = {'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'fitted_codepoints': [], 'ivs_inherited': False}
     imported = set()
     for donor in donors:
         # Earlier subsets win if their coverage overlaps.
@@ -86,7 +92,9 @@ def merge_many(base, donors, **options) -> dict:
         combined['derived_halfwidth_codepoints'].extend(result['derived_halfwidth_codepoints'])
         combined['added_codepoints'].extend(result['added_codepoints'])
         combined['overflow_codepoints'].extend(result['overflow_codepoints'])
+        combined['fitted_codepoints'].extend(result['fitted_codepoints'])
         combined['cell_width'] = result['cell_width']
     combined['added_codepoints'].sort()
     combined['overflow_codepoints'].sort()
+    combined['fitted_codepoints'].sort()
     return combined

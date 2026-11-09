@@ -98,10 +98,14 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
                 'cell': base['hmtx'].metrics[base.getBestCmap()[32]][0],
                 'scale': rendering.get('jp_scale', 1),
                 'halfwidth_kana_scale': rendering.get('halfwidth_kana_scale', 1),
-                'baseline': rendering.get('baseline_offset', 0)})
+                'baseline': rendering.get('baseline_offset', 0),
+                'fit_overflow': rendering.get('fit_overflow', True),
+                'fit_margin': rendering.get('fit_margin', 0.02)})
         report = merge_many(base, [donor, *extra_donors],
                             halfwidth_kana_scale=rendering.get('halfwidth_kana_scale', 1), outline_cache=outline_cache, overrides=unicode_overrides, jp_scale=rendering.get('jp_scale', 1),
-                       baseline_offset=rendering.get('baseline_offset', 0))
+                       baseline_offset=rendering.get('baseline_offset', 0),
+                       fit_overflow=rendering.get('fit_overflow', True),
+                       fit_margin=rendering.get('fit_margin', 0.02))
         coverage = coverage_report(base.getBestCmap() or {},
                                    [font.getBestCmap() or {} for font in [donor, *extra_donors]])
         identity = apply_metadata(base, donor, target, config['project'], extra_donors)

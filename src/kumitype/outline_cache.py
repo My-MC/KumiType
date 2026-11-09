@@ -12,7 +12,7 @@ from .artifacts import write_text
 
 class OutlineCache:
     def __init__(self, identity, root=Path('cache/outlines')):
-        key = hashlib.sha256(json.dumps([2, version, identity], sort_keys=True).encode()).hexdigest()
+        key = hashlib.sha256(json.dumps([4, version, identity], sort_keys=True).encode()).hexdigest()
         root.mkdir(parents=True, exist_ok=True)
         self.path = root / (key + '.json')
         self.entries = {}
@@ -31,11 +31,11 @@ class OutlineCache:
         if entry is None:
             return None
         glyph = Glyph(base64.b64decode(entry['glyph'], validate=True))
-        return glyph, entry['lsb'], entry['overflow']
+        return glyph, entry['lsb'], entry['overflow'], entry['fitted']
 
-    def put(self, codepoint, glyph, lsb, overflow):
+    def put(self, codepoint, glyph, lsb, overflow, fitted):
         self.entries[str(codepoint)] = {'glyph': base64.b64encode(glyph.compile(None)).decode(),
-                                       'lsb': lsb, 'overflow': overflow}
+                                       'lsb': lsb, 'overflow': overflow, 'fitted': fitted}
         self.dirty = True
 
     def save(self):

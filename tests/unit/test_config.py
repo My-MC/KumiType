@@ -3,6 +3,30 @@ from pathlib import Path
 from kumitype.config import load, targets
 
 
+def test_fit_rendering_validation(tmp_path):
+    import pytest
+    import yaml
+
+    config = load(Path(__file__).parents[2] / 'config/build.yaml')
+    path = tmp_path / 'build.yaml'
+    for group in ('rendering', 'override'):
+        rendering = config['rendering'] if group == 'rendering' else {}
+        if group == 'override':
+            config['font_overrides'] = {'biz': rendering}
+        for key, values in [('fit_overflow', [0, 1, 'true', None]),
+                            ('fit_margin', [-0.01, 0.5, True, '0.02', float('nan'), float('inf')])]:
+            for value in values:
+                rendering[key] = value
+                path.write_text(yaml.safe_dump(config))
+                with pytest.raises(ValueError, match=key):
+                    load(path)
+            rendering.pop(key)
+        for margin in (0, 0.02, 0.49):
+            rendering.update(fit_overflow=False, fit_margin=margin)
+            path.write_text(yaml.safe_dump(config))
+            assert load(path)
+
+
 def test_default_matrix():
     config = load(Path(__file__).parents[2] / 'config/build.yaml')
     matrix = targets(config)

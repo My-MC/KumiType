@@ -70,6 +70,73 @@ def test_merge_preserves_layout_and_protected_glyphs(tmp_path):
     assert validate(path, base_path)['valid']
 
 
+def test_overflow_is_fitted_horizontally_without_changing_other_outlines():
+    from kumitype.merger import merge_many
+
+    donor = make_font({0x2460: 'circle', 0x3042: 'kana'})
+    before = make_font({65: 'a'})
+    after = make_font({65: 'a'})
+    original = after['glyf']['a'].compile(after['glyf'])
+    merge(before, donor, fit_overflow=False)
+    report = merge_many(after, [donor])
+    cmap = after.getBestCmap()
+    fitted = after['glyf'][cmap[0x2460]]
+    assert (fitted.xMin, fitted.xMax, fitted.yMin, fitted.yMax) == (10, 490, 0, 700)
+    assert report['fitted_codepoints'] == [0x2460]
+    assert report['overflow_codepoints'] == []
+    assert after['glyf']['a'].compile(after['glyf']) == original
+    name = cmap[0x3042]
+    assert after['glyf'][name].compile(after['glyf']) == before['glyf'][name].compile(before['glyf'])
+
+
+def test_fit_applies_to_two_cells_and_respects_margin_and_disable(tmp_path):
+    from kumitype.outline_cache import OutlineCache
+
+    donor = make_font({0x2460: 'circle', 0x3042: 'kana', 0x30A2: 'katakana'})
+    disabled = make_font({65: 'a'})
+    report = merge(disabled, donor, jp_scale=2, baseline_offset=37, fit_overflow=False)
+    assert report['fitted_codepoints'] == []
+    assert 0x3042 in report['overflow_codepoints']
+    first = make_font({65: 'a'})
+    options = dict(jp_scale=2, baseline_offset=37, fit_margin=0.1)
+    identity = {**options, 'fit_overflow': True}
+    report = merge(first, donor, outline_cache=OutlineCache(identity, tmp_path), **options)
+    assert {0x2460, 0x3042, 0xFF71} <= set(report['fitted_codepoints'])
+    assert report['overflow_codepoints'] == []
+    cmap = first.getBestCmap()
+    for cp in report['fitted_codepoints']:
+        glyph = first['glyf'][cmap[cp]]
+        width = first['hmtx'][cmap[cp]][0]
+        assert (glyph.xMin, glyph.xMax) == (width * 0.1, width * 0.9)
+        assert (glyph.yMin, glyph.yMax) == (37, 1437)
+    second = make_font({65: 'a'})
+    cached = merge(second, donor, outline_cache=OutlineCache(identity, tmp_path), **options)
+    assert cached == report
+    assert first.getTableData('glyf') == second.getTableData('glyf')
+    assert first.getTableData('hmtx') == second.getTableData('hmtx')
+    cache = OutlineCache(identity, tmp_path)
+    assert cache.path != OutlineCache({**identity, 'fit_margin': 0}, tmp_path).path
+    assert cache.path != OutlineCache({**identity, 'fit_overflow': False}, tmp_path).path
+
+
+def test_cubic_fitting_preserves_converted_vertical_coordinates():
+    from kumitype.glyph_transform import transform_glyph
+
+    class Curve:
+        def draw(self, pen):
+            pen.moveTo((0, 0))
+            pen.curveTo((1841, 1434), (2668, 1054), (859, -116))
+            pen.lineTo((0, 0))
+            pen.closePath()
+
+    original, _, _ = transform_glyph({'curve': Curve()}, 'curve', 1, 500)
+    fitted, _, overflow = transform_glyph({'curve': Curve()}, 'curve', 1, 500,
+                                         fit_overflow=True, fit_margin=0)
+    assert [y for _, y in fitted.coordinates] == [y for _, y in original.coordinates]
+    assert (fitted.xMin, fitted.xMax) == (0, 500)
+    assert not overflow
+
+
 def test_cubic_outline_conversion():
     from kumitype.glyph_transform import transform_glyph
 

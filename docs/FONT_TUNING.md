@@ -3,8 +3,20 @@
 config/build.yamlのrenderingまたはfont_overridesの各日本語IDへ
 jp_scaleとbaseline_offsetを設定します。baseline_offsetは出力UPMの単位です。
 全角は既存Cascadiaスペースの2倍、半角カナは1倍のadvanceです。
-輪郭幅がadvanceを超える文字はJSONのoverflow_codepointsへ記録します。
-輪郭を自動で縮小して超過を隠す処理は行いません。
+輪郭幅がadvanceを超える取り込み文字は、既定で水平方向のみ縮小して中央配置します。
+Ambiguous/Neutralなどの1セル文字と全角2セル文字に同じ規則を適用します。
+縦方向・ベースライン・advanceとCascadia由来の輪郭は変えません。
+
+- `rendering.fit_overflow`: 既定`true`。`false`で自動縮小を無効化できます。
+- `rendering.fit_margin`: 片側余白のセル幅に対する割合（既定`0.02`、`0 <= 値 < 0.5`）。
+  縮小後の目標輪郭幅は`advance * (1 - 2 * fit_margin)`です。
+  セル内に既に収まる輪郭を、余白確保のためだけに縮小することはありません。
+
+各書体の`font_overrides`にも同じ設定を指定できます。半角カナ派生の水平50%変換と
+`halfwidth_kana_scale`・`jp_scale`を適用した後に超過を判定します。
+JSONの`merge.fitted_codepoints`は縮小した文字、`overflow_codepoints`は
+変換・丸め後も超過する文字です。新しい設定とキャッシュ形式の版をキーに含め、
+旧輪郭キャッシュは再利用しません。
 
 標準jp_scale=1.0は未調整値です。プレビューを使って各書体の高さ・字面・
 ベースラインを比較してください。3:5と日本語合成斜体は現在エラーになります。
