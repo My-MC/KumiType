@@ -62,6 +62,11 @@ def test_merge_preserves_layout_and_protected_glyphs(tmp_path):
         assert output['hmtx'][cmap[0x20000]][0] == 1000
         glyph = output['glyf'][cmap[0x3042]]
         assert glyph.xMin == 150 and glyph.xMax == 850
+    from kumitype.config import Target
+    from kumitype.metadata import apply_metadata
+    apply_metadata(base, donor, Target('mono', 'biz', 400, 'normal'),
+                   {'name': 'KumiType', 'version': '0.1.0'})
+    base.save(path)
     assert validate(path, base_path)['valid']
 
 
@@ -143,6 +148,8 @@ def test_packaging_rejects_modified_output(tmp_path):
 
 
 def test_packaging_refuses_missing_license(tmp_path):
+    from kumitype.config import Target
+    from kumitype.metadata import apply_metadata
     import hashlib
     import json
 
@@ -153,13 +160,16 @@ def test_packaging_refuses_missing_license(tmp_path):
     root = tmp_path / 'build'
     root.mkdir()
     path = root / 'font.ttf'
-    make_font({65: 'a'}).save(path)
+    font = make_font({65: 'a'})
+    apply_metadata(font, font, Target('mono', 'biz', 400, 'normal'),
+                   {'name': 'KumiType', 'version': '2.3.4'})
+    font.save(path)
     manifest = {'validation': {'valid': True},
                 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                 'sources': [{'path': str(path)}],
                 'identity': {'family': 'KumiType BIZ Mono', 'style': 'Regular',
                              'postscript_name': 'KumiTypeBIZMono-Regular'},
-                'config': {'project': {'name': 'KumiType'}},
+                'config': {'project': {'name': 'KumiType', 'version': '2.3.4'}},
                 'target': {'base': 'mono', 'japanese': 'biz', 'weight': 400, 'style': 'normal'}}
     path.with_suffix('.json').write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match='Missing Cascadia license'):

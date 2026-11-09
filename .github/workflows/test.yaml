@@ -14,5 +14,5 @@ jobs:
           enable-cache: true
           version: "0.13.5"
       - run: uv sync --locked --extra dev
-      - run: uv run --locked ruff check src tests
+      - run: uv run --locked ruff check src tests scripts
       - run: uv run --locked pytest

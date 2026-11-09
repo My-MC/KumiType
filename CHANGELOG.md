@@ -7,5 +7,9 @@
 - 日本語輪郭のUPM正規化、中央配置、幅設定、ベースライン調整を追加。
 - 独自ファミリー名、著作権・ライセンス統合、検証、マニフェスト、ZIPを追加。
 - Docker、OSセットアップ、CI、表示サンプルを追加。
+- G1〜G7の根拠付きJSON判定スクリプトを追加（fontbakeryはPENDING）。
+- 生成フォントのDSIGを削除し、JIS/Japanコードページbit17、ベンダーID `NONE`、
+  project.version由来のfontRevisionを設定。validatorでも各違反をエラー化。
+- CIのruff対象を `src tests scripts` に統一。
 
 受け入れ条件の全検証はまだ完了していません。

@@ -108,7 +108,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
         directory = output / config['project'].get('font_names', JP_NAMES)[target.japanese] / variant
         directory.mkdir(parents=True, exist_ok=True)
         destination = directory / (identity['postscript_name'] + '.ttf')
-        validation = save_font(base, destination, lambda path: validate(path, base_path))
+        validation = save_font(base, destination, lambda path: validate(path, base_path, project_version=config['project']['version']))
     finally:
         base.close()
         donor.close()

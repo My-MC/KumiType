@@ -3,6 +3,14 @@
 `kumitype validate --all` は生成TTF、マニフェストのハッシュ、グリフ参照、
 元グリフID、PUA、GSUB/GPOS/GDEF、追加文字の存在と送り幅を検査します。
 検証失敗や対象がない場合は終了コード1を返します。
+DSIGの残存、OS/2.ulCodePageRange1のbit17未設定、achVendIDが `NONE` 以外、
+head.fontRevisionとバージョンの不一致もエラーです。`validate()` の
+`project_version` で期待バージョンを指定でき、省略時はインストール済み
+KumiTypeのproject.versionを使います。ビルド時は設定のproject.versionを渡します。
+OpenTypeの16.16固定小数点に丸め、0.1.0は0.100（読取値0.100006103515625）です。
+一般にはmajor.minorPP（minorは0〜9、patchは2桁）に変換し、衝突を避けるため
+2桁以上のminor・3桁以上のpatchは拒否します。validate/packageの再検証は
+各マニフェストに記録されたproject.versionを期待値に使います。
 
 `python scripts/generate-preview.py` で `build/preview.html` を生成します。
 ブラウザで開いてスクリーンショットを保存し、変更前後を比較してください。
@@ -53,6 +61,40 @@ python scripts/generate-preview.py --build-dir build-latest --base mono-nf --wei
 
 半角カナはソース由来の取り込み一覧と独立してU+FF61–U+FF9Fの全63文字を
 検査し、欠落または1セル以外のadvanceをエラーにします。
+
+## 改善ループの合格判定
+
+```sh
+uv run --locked python scripts/check-goal.py --only G1,G2,G3
+uv run --locked python scripts/check-goal.py --only G2,G4 --build-dir build-check --reuse
+# 全ゲート（G5は28対象を2回ビルド・パッケージするため時間がかかります）
+uv run --locked python scripts/check-goal.py > build-goals.json
+```
+
+`--only` を省略するとG1〜G7を実行します。JSONの `goals` にstatusとevidenceを返し、
+FAILが1件でもあれば終了コード1です。未実装のG7のみPENDING（終了コードに影響なし）。
+ログは標準エラー、JSONは標準出力に分離します。
+
+検証サブセットはcode-nfとmono、日本語7書体それぞれの400 normal / 700 italicの
+**28対象**です（400 italic / 700 normalは含みません）。既存のTTFとマニフェストが
+あれば使い、不足分のみビルドします。`--reuse` は自動ビルドを禁止し、欠落時にFAILに
+します。設定・対象・TTFハッシュが古い場合もFAILです。再ビルドが必要なら専用の空の
+`--build-dir` を指定してください。G2は指定ディレクトリ内の追加TTFも検査します。
+ソースは事前に `kumitype fetch` で用意し、判定自体はオフラインで実行できます。
+
+| ゲート | 判定根拠 |
+|---|---|
+| G1 | pytestとruff（src tests scripts）の終了コード・ログ |
+| G2 | TTF実体のDSIG、JIS bit17、fontRevision、achVendID |
+| G3 | 正常な合成フォントを対照に、4違反を個別注入してvalidateが対応するエラーを返すこと |
+| G4 | マニフェストの取り込み一覧に対して、実輪郭のxMax−xMinとadvanceを全件比較 |
+| G5 | 同じ出力パスで2回クリーンビルド・ZIP生成したTTF/ZIPの相対パス一覧とSHA-256一致 |
+| G6 | 外部cwdからCLIのcache-dir受付、設定lockのカナリア、list、カスタムキャッシュ実ビルドを検査 |
+| G7 | fontbakery（後続実装までPENDING） |
+
+G4〜G6で失敗してもG1〜G3の個別結果を保持します。G5の一時出力は作業用一時領域に
+置き、source/は削除しません。G6は独立した一時設定を使い、存在しないカナリアlockが
+実際に参照されるかを確認するため、既存ソースの再取得やlockの書き換えは行いません。
 
 実入力BIZ + Mono NF Regularについて、同じ固定依存を使用したPython 3.11.17と
 3.14.7の生成TTFでSHA-256一致を確認しています。これは当該入力の検証結果であり、

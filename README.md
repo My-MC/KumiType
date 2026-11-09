@@ -38,6 +38,11 @@ uv run --locked pytest
 uv run --locked ruff check src tests scripts
 ```
 
+改善ループの判定は `uv run --locked python scripts/check-goal.py --only G1,G2,G3` で実行します。
+code-nf / mono × 日本語7書体 × Regular / Bold Italic の28フォントを確認し、
+項目ごとのPASS/FAIL/PENDINGと根拠を標準出力へJSONで返します。
+詳細とG4〜G7は[検証ガイド](docs/VALIDATION.md#改善ループの合格判定)を参照してください。
+
 CIはGitHubのUbuntuランナー上でPythonのテストとLintを行います。
 ディストリビューション別コンテナおよびDockerによる動作確認はCIで実行しません。
 手動フルビルド用のGitHub Actionsも用意しています。
