@@ -86,6 +86,23 @@ def test_explicit_lock_overrides_configuration(tmp_path, monkeypatch, capsys):
     assert str(path.parent / 'override.toml') in capsys.readouterr().err
 
 
+def test_container_config_environment_uses_mounted_project(tmp_path, monkeypatch, capsys):
+    path = config_file(tmp_path)
+    data = yaml.safe_load(path.read_text())
+    data.update(variants=['mono'], japanese_fonts=['biz'], weights=[400], styles=['normal'])
+    path.write_text(yaml.safe_dump(data))
+    monkeypatch.setenv('KUMITYPE_CONFIG', str(path))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr('sys.argv', ['kumitype', 'list', '--json'])
+    assert main() == 0
+    assert __import__('json').loads(capsys.readouterr().out) == [
+        {'base': 'mono', 'japanese': 'biz', 'weight': 400, 'style': 'normal'}]
+    # An explicit --config remains authoritative over the container default.
+    monkeypatch.setenv('KUMITYPE_CONFIG', str(tmp_path / 'missing.yaml'))
+    monkeypatch.setattr('sys.argv', ['kumitype', '--config', str(path), 'list', '--json'])
+    assert main() == 0
+
+
 def test_all_commands_accept_cache_dir(monkeypatch, capsys):
     for name in ('list', 'doctor', 'fetch', 'build', 'build-all', 'validate',
                  'package', 'audit', 'import-source', 'update-source'):

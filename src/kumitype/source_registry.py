@@ -62,7 +62,17 @@ def locked_manifests(source: Path, lock: Path, *, identifiers=None) -> list[dict
 def manifest_font_path(source: Path, path: str) -> Path:
     """Resolve legacy project-relative manifest paths, never against cwd."""
     value = Path(path)
-    return value if value.is_absolute() else source.resolve().parent / value
+    if value.is_absolute():
+        return value
+    source = source.resolve()
+    # Legacy paths include the entire configured source prefix (data/source,
+    # not necessarily just source). Find the ancestor that maps that prefix
+    # back onto the active installation without consulting the caller's cwd.
+    for parent in source.parents:
+        candidate = parent / value
+        if candidate.is_relative_to(source):
+            return candidate
+    return source.parent / value
 
 
 def update_lock(lock: Path, identifier: str, version: str, url: str, digest: str,

@@ -22,7 +22,7 @@ KumiTypeへの改名後はBIZ Mono NF Regularの実生成・検証を確認し�
 
 ## PR3での追加確認
 
-Python 3.14でpytest **101件**・Ruffが成功し、`scripts/check-goal.py` の
+Python 3.14でpytest **106件**・Ruffが成功し、`scripts/check-goal.py` の
 **G1〜G6がすべてPASS**しました。対象はcode-nf / mono、日本語7系列それぞれの
 400 normal / 700 italic（28 TTF）です。
 
@@ -34,6 +34,9 @@ Python 3.14でpytest **101件**・Ruffが成功し、`scripts/check-goal.py` の
   カスタムキャッシュへの実フォント生成を確認。
 - 合成フォントの回帰テストでも外部cwdからbuild / build-all / validate / package、
   オフラインimport / fetch、設定キャッシュとCLIキャッシュの両方を確認。
+- 別のプロジェクト配置とソース・キャッシュ保存先から生成したZIPのSHA-256一致、
+  配布JSONのローカルパス除外、配布用設定ハッシュとパッケージ監査の整合性も確認。
+- 入れ子の既存ソースパス（`data/source`）と、Docker用設定環境変数の参照を回帰テスト。
 - PR2の28 TTFとのSHA-256一致も確認（ZIPは今回から再現可能な形式へ変更）。
 
 これは上記サブセットの確認であり、現行コードで504対象のフルビルドやG7の

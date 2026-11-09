@@ -71,6 +71,72 @@ def test_external_cwd_build_validate_package_routes_cache(project, tmp_path, mon
     assert list((project / 'configured-cache/outlines').glob('*.json'))
 
 
+def test_zip_reproducible_across_project_source_and_cache_locations(project, tmp_path, monkeypatch):
+    import shutil
+    import zipfile
+
+    (project / 'legal').mkdir()
+    (project / 'legal/OFL.txt').write_text('additional license')
+    config = yaml.safe_load((project / 'build.yaml').read_text())
+    config['font_overrides'] = {'biz': {'subset_files': ['source/biz/1/donor.ttf'],
+                                      'subset_licenses': ['legal/OFL.txt']}}
+    (project / 'build.yaml').write_text(yaml.safe_dump(config))
+    relocated = tmp_path / 'elsewhere' / 'checkout'
+    shutil.copytree(project, relocated)
+    shutil.move(relocated / 'source', relocated / 'other-inputs')
+    config['font_overrides']['biz']['subset_files'] = ['other-inputs/biz/1/donor.ttf']
+    (relocated / 'build.yaml').write_text(yaml.safe_dump(config))
+    # Include absolute source-manifest paths, not just legacy relative ones.
+    for path in (relocated / 'other-inputs').rglob('source-manifest.json'):
+        data = json.loads(path.read_text())
+        for font in data['fonts']:
+            font['path'] = str(relocated / 'other-inputs' / Path(font['path']).relative_to('source'))
+        path.write_text(json.dumps(data))
+    hashes = []
+    for root, args in [(project, []), (relocated, ['--source-dir', 'other-inputs',
+                                                  '--cache-dir', 'other-cache'])]:
+        assert invoke(monkeypatch, root, 'build', '--base', 'mono', '--jp', 'biz', *args) == 0
+        assert invoke(monkeypatch, root, 'package', '--all', *args) == 0
+        archive = next((root / 'dist').glob('*.zip'))
+        hashes.append(hashlib.sha256(archive.read_bytes()).hexdigest())
+        with zipfile.ZipFile(archive) as package:
+            for name in package.namelist():
+                if name.endswith('.json'):
+                    assert str(tmp_path) not in package.read(name).decode()
+                    assert '_project_root' not in package.read(name).decode()
+    assert hashes[0] == hashes[1]
+    # The package auditor must use the same portable projection even though
+    # the two local build manifests retain different absolute paths/hashes.
+    import subprocess
+    import sys
+
+    script = Path(__file__).parents[2] / 'scripts/check-packages.py'
+    for root in (project, relocated):
+        checked = subprocess.run([sys.executable, str(script), '--build-dir', str(root / 'build'),
+                                  '--dist-dir', str(root / 'dist')], capture_output=True, text=True)
+        assert checked.returncode == 0, checked.stderr
+
+
+def test_nested_legacy_source_paths_work_from_external_cwd(project, tmp_path, monkeypatch, capsys):
+    import shutil
+
+    (project / 'data').mkdir()
+    source = project / 'data/source'
+    shutil.move(project / 'source', source)
+    for path in source.rglob('source-manifest.json'):
+        data = json.loads(path.read_text())
+        for font in data['fonts']:
+            font['path'] = 'data/' + font['path']
+        path.write_text(json.dumps(data))
+    monkeypatch.chdir(tmp_path)
+    assert invoke(monkeypatch, project, 'doctor', '--source-dir', 'data/source') == 0
+    assert json.loads(capsys.readouterr().out)['sources_ready']
+    assert invoke(monkeypatch, project, 'build', '--base', 'mono', '--jp', 'biz',
+                  '--source-dir', 'data/source') == 0
+    assert invoke(monkeypatch, project, 'validate', '--all') == 0
+    assert invoke(monkeypatch, project, 'package', '--all', '--source-dir', 'data/source') == 0
+
+
 def test_doctor_only_requires_selected_fonts_and_licenses(project, monkeypatch, capsys):
     lock = project / 'pins.toml'
     lock.write_text(lock.read_text() + '\n[[sources]]\nid="unused"\nversion="1"\n'

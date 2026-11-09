@@ -98,16 +98,20 @@ paths:
 
 ## 再現可能なZIP
 
-同じ入力・設定・依存・実装と同じパス構成で、TTFとZIPのSHA-256を再現できます。
+同じ入力・設定・依存・実装なら、プロジェクトの配置先やソース・キャッシュの保存先を
+変えてもTTFとZIPのSHA-256を再現できます。
 ZIPはエントリ名順、Unix通常ファイル `0644`、固定の圧縮レベルで作成し、入力の
 mtime・権限を取り込みません。日時は既定で1980-01-01 00:00:00 UTCです。
 `SOURCE_DATE_EPOCH` を整数秒で指定するとUTCで反映します。ZIPの表現範囲
 （1980〜2107年）外は端に丸め、秒は2秒単位で切り捨てます。不正な値はエラーです。
 
-ZIP内のマニフェストでは `generated_at`、`duration_seconds`、
-`process_peak_rss_kib` を除外し、キー順を固定します。ビルド出力側のJSONは実測値を
-保持します。入力パスや実装・依存の識別子は追跡用に残すため、異なる配置や依存版を
-またぐZIP一致まで保証するものではありません。
+ZIP内のマニフェストと `sources/*.json` では `generated_at`、`duration_seconds`、
+`process_peak_rss_kib` に加え、ローカル保存先（`path`、`paths`、`sources.lock`、
+`subset_files`、`subset_licenses`）と内部キー `_project_root` を除外します。
+`config_sha256` はこの配布用設定から再計算し、キー順を固定します。入力の追跡には
+ソース・追加ライセンスのSHA-256、URL、固定版を残します。ビルド出力側のJSONは
+元のパス・設定ハッシュ・実測値を保持します。実装・依存の識別子も保持するため、
+異なる依存版をまたぐZIP一致を保証するものではありません。
 
 ## オフライン利用
 
@@ -126,6 +130,9 @@ uv run --locked --offline kumitype build-all
 ## Docker / Compose / Podmanで手動実行
 
 Dockerは任意のローカル実行方法です。CIの動作確認対象にはしていません。
+コンテナの `KUMITYPE_CONFIG=/work/config/build.yaml` により、イメージ内の
+パッケージではなくマウントしたプロジェクトの設定を参照します。
+明示的な `--config` はこの環境変数より優先されます。
 
 ```sh
 docker build -t kumitype-builder:local .

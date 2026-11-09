@@ -7,6 +7,6 @@ WORKDIR /opt/kumitype
 COPY uv.lock pyproject.toml README.md LICENSE .python-version ./
 COPY src ./src
 RUN uv sync --locked --no-dev
-ENV PATH="/opt/kumitype/.venv/bin:$PATH"
+ENV PATH="/opt/kumitype/.venv/bin:$PATH" KUMITYPE_CONFIG=/work/config/build.yaml
 WORKDIR /work
 CMD ["kumitype", "--help"]

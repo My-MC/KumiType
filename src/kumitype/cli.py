@@ -1,6 +1,7 @@
 """Command-line entry point."""
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -16,7 +17,8 @@ from .packager import package_all
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog='kumitype')
-    parser.add_argument('--config', default=str(Path(__file__).resolve().parents[2] / 'config/build.yaml'))
+    parser.add_argument('--config', default=os.environ.get(
+        'KUMITYPE_CONFIG', str(Path(__file__).resolve().parents[2] / 'config/build.yaml')))
     sub = parser.add_subparsers(dest='command', required=True)
     listing = sub.add_parser('list', help='Show configured build targets')
     listing.add_argument('--json', action='store_true')

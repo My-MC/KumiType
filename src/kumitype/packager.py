@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 import zipfile
 from pathlib import Path
+from typing import Any
 
 from fontTools.ttLib import TTFont
 
@@ -19,8 +20,30 @@ RUNTIME_FIELDS = frozenset(('generated_at', 'duration_seconds', 'process_peak_rs
 
 
 def packaged_manifest(manifest: dict) -> dict:
-    """Keep provenance and checksums, omitting measurements of this execution."""
-    return {key: value for key, value in manifest.items() if key not in RUNTIME_FIELDS}
+    """Project provenance onto portable content, never local storage locations.
+
+    Source/license hashes retain input identity. Storage paths, the lock filename
+    and subset filenames are execution details; actual subset inputs are also
+    recorded by hash in sources/additional_licenses. Build JSON stays untouched.
+    """
+    excluded = RUNTIME_FIELDS | {'_project_root', 'paths', 'path', 'lock',
+                                 'subset_files', 'subset_licenses'}
+
+    def portable(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: portable(item) for key, item in value.items() if key not in excluded}
+        if isinstance(value, list):
+            return [portable(item) for item in value]
+        return value
+
+    result = portable(manifest)
+    if 'config_sha256' in result:
+        import hashlib
+
+        result['config_sha256'] = hashlib.sha256(json.dumps(
+            result['config'], sort_keys=True, separators=(',', ':'),
+            ensure_ascii=False).encode()).hexdigest()
+    return result
 
 
 def json_bytes(value: dict) -> bytes:
