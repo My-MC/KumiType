@@ -146,6 +146,17 @@ def test_subset_ignores_unpublished_atomic_temporary(tmp_path, monkeypatch):
     assert module.ensure_subset(tmp_path, config, reuse=True) == [path]
 
 
+def test_g1_requires_type_check_success(monkeypatch):
+    module = runner()
+    commands = []
+    def command(args):
+        commands.append(args)
+        return {'returncode': 1 if 'mypy' in args else 0}
+    monkeypatch.setattr(module, 'command', command)
+    assert module.check_g1()['status'] == 'FAIL'
+    assert ['uv', 'run', '--locked', 'mypy', 'src'] in commands
+
+
 def test_g1_failure_is_not_hidden(monkeypatch):
     module = runner()
     monkeypatch.setattr(module, 'command', lambda args: {'returncode': 1})

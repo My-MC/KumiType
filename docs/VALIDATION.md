@@ -64,6 +64,23 @@ python scripts/generate-preview.py --build-dir build-latest --base mono-nf --wei
 半角カナはソース由来の取り込み一覧と独立してU+FF61–U+FF9Fの全63文字を
 検査し、欠落または1セル以外のadvanceをエラーにします。
 
+## 開発時の静的検査
+
+```sh
+uv sync --locked --extra dev
+uv run --locked mypy src
+uv run --locked ruff check src tests scripts
+uv run --locked pytest
+```
+
+型チェッカーはmypyを採用しています。Python依存だけで実行でき、Node.js等の
+追加実行環境を不要にして既存のuvワークフローに統一できるためです。
+`check_untyped_defs = true` で注釈のない関数の内部も検査します。
+FontToolsは型情報のない外部ライブラリなので、そのimportだけを例外とし、
+PyYAMLには型スタブを導入しています。CIの `python (3.14.7)` で型検査します。
+循環参照回避が必要な `report.doctor` → `builder.choose_donor` の遅延import以外は
+既存の関数内importをモジュール先頭に整理しています。
+
 ## 改善ループの合格判定
 
 ```sh
@@ -86,7 +103,7 @@ FAILが1件でもあれば終了コード1です。未実装のG7のみPENDING�
 
 | ゲート | 判定根拠 |
 |---|---|
-| G1 | pytestとruff（src tests scripts）の終了コード・ログ |
+| G1 | pytest、ruff（src tests scripts）、mypy（src）の終了コード・ログ |
 | G2 | TTF実体のDSIG、JIS bit17、fontRevision、achVendID |
 | G3 | 正常な合成フォントを対照に、4違反を個別注入してvalidateが対応するエラーを返すこと |
 | G4 | マニフェストの取り込み一覧に対して、実輪郭のxMax−xMinとadvanceを全件比較 |

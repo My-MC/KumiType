@@ -1,25 +1,28 @@
 """Portable environment diagnostics."""
 import importlib.metadata
+import json
 import os
 import platform
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+from .artifacts import write_text
+from .config import targets
+from .downloader import sha256
+from .metadata import WEIGHT_NAMES
+from .source_registry import locked_manifests, source_status
 
 
 def doctor(source=Path('source'), output=Path('build'), lock=Path('config/sources.lock.toml'),
            config=None) -> dict:
-    from .source_registry import source_status
-
     output.mkdir(parents=True, exist_ok=True)
     sources = source_status(lock, source)
     required_errors = []
     required_ids = {row['id'] for row in sources}
     if config is not None:
         from .builder import choose_donor
-        from .config import targets
-        from .metadata import WEIGHT_NAMES
-        from .source_registry import locked_manifests
-        from .downloader import sha256
 
         required_ids = {'cascadia', 'cascadia-license'}
         required_paths = set()
@@ -80,17 +83,13 @@ def doctor(source=Path('source'), output=Path('build'), lock=Path('config/source
 
 def write_build_report(outputs: list[str], errors: list[dict], root=Path('build')) -> None:
     """Emit machine-readable and reviewable summaries of completed work."""
-    import json
-    from datetime import datetime, timezone
-
     records = [json.loads(Path(path).with_suffix('.json').read_text(encoding='utf-8'))
                for path in outputs]
-    report = {'generated_at': datetime.now(timezone.utc).isoformat(),
+    report: dict[str, Any] = {'generated_at': datetime.now(timezone.utc).isoformat(),
               'output_count': len(outputs), 'outputs': outputs, 'errors': errors,
               'warnings': [warning for record in records for warning in record['warnings']],
               'records': records}
     root.mkdir(parents=True, exist_ok=True)
-    from .artifacts import write_text
 
     write_text(root / 'build-report.json', json.dumps(report, indent=2))
     lines = ['# KumiType build report', '', f"Generated: {report['generated_at']}",
@@ -107,10 +106,6 @@ def write_build_report(outputs: list[str], errors: list[dict], root=Path('build'
 
 
 def write_validation_report(results: list[dict], root: Path) -> None:
-    import json
-
-    from .artifacts import write_text
-
     root.mkdir(parents=True, exist_ok=True)
     write_text(root / 'validation-report.json', json.dumps(results, indent=2))
     lines = ['# KumiType validation report', '', '| File | Binary checks | Shaping |',

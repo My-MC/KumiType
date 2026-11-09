@@ -11,7 +11,7 @@ def compare_shaping(base: Path, generated: Path, executable='hb-shape') -> dict:
     if not shutil.which(executable):
         return {'status': 'unavailable', 'errors': [], 'samples': [],
                 'reason': 'hb-shape is not installed'}
-    samples = []
+    samples: list[dict] = []
     errors = []
     for text in SAMPLES:
         shaped = []

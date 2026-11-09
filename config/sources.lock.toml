@@ -32,7 +32,7 @@ format = "text"
 filename = "OFL.txt"
 
 [[sources]]
-id = "plex-22-bd8a98b9"
+id = "plex-bold"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Bold.ttf"
 sha256 = "bd8a98b9b55c9ea3f0fa1ed094c15981788cc9a41b0357f4453014fd1d44da19"
@@ -40,7 +40,7 @@ format = "ttf"
 filename = "IBMPlexSansJP-Bold.ttf"
 
 [[sources]]
-id = "plex-28-83b3a8d9"
+id = "plex-extralight"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-ExtraLight.ttf"
 sha256 = "83b3a8d967295c162938946d6a9395d539c95fd53e161e0e4b01e5d7f39a2ea6"
@@ -48,7 +48,7 @@ format = "ttf"
 filename = "IBMPlexSansJP-ExtraLight.ttf"
 
 [[sources]]
-id = "plex-23-f6390231"
+id = "plex-light"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Light.ttf"
 sha256 = "f6390231b0ce848866d5599765897d4b882d6b29dc0484dd4d1a5435b05761ba"
@@ -56,15 +56,7 @@ format = "ttf"
 filename = "IBMPlexSansJP-Light.ttf"
 
 [[sources]]
-id = "plex-24-1d09f5e2"
-version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
-url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Medium.ttf"
-sha256 = "1d09f5e25b19e54b2c55da70de58f9962512c3e07ed7c3e1c9bad77ace5c22e6"
-format = "ttf"
-filename = "IBMPlexSansJP-Medium.ttf"
-
-[[sources]]
-id = "plex-25-372f8bba"
+id = "plex-regular"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Regular.ttf"
 sha256 = "372f8bba95f386856ae435dc0e69f08db1cac29bed513d99171a0ae2d307ba2a"
@@ -72,20 +64,12 @@ format = "ttf"
 filename = "IBMPlexSansJP-Regular.ttf"
 
 [[sources]]
-id = "plex-26-5985c29d"
+id = "plex-semibold"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-SemiBold.ttf"
 sha256 = "5985c29d2d5d444072915cf5874dc80e0a3f5fadbf14a9e3013a03a8fe6d7ff5"
 format = "ttf"
 filename = "IBMPlexSansJP-SemiBold.ttf"
-
-[[sources]]
-id = "plex-22-773042bf"
-version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
-url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/ibmplexsansjp/IBMPlexSansJP-Thin.ttf"
-sha256 = "773042bf5e8f428d46fcf81b9255c6a451f20cbd39983f308e96808a2e15e134"
-format = "ttf"
-filename = "IBMPlexSansJP-Thin.ttf"
 
 [[sources]]
 id = "plex-license"
@@ -96,7 +80,7 @@ format = "text"
 filename = "OFL.txt"
 
 [[sources]]
-id = "noto-20-c2f3b4d4"
+id = "noto-variable"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf"
 sha256 = "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f"
@@ -112,7 +96,7 @@ format = "text"
 filename = "OFL.txt"
 
 [[sources]]
-id = "mplus1-16-32dab296"
+id = "mplus1-variable"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus1/MPLUS1%5Bwght%5D.ttf"
 sha256 = "32dab296a06c3e87841ecd2bc9912434a964ad541e22ea19f764969dae93fced"
@@ -128,7 +112,7 @@ format = "text"
 filename = "OFL.txt"
 
 [[sources]]
-id = "mplus2-16-2e4f45c2"
+id = "mplus2-variable"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/mplus2/MPLUS2%5Bwght%5D.ttf"
 sha256 = "2e4f45c2391355fb03195da4854ffbe85fea49bfdff5cc51020238083af6b75c"
@@ -152,15 +136,7 @@ format = "text"
 filename = "OFL.txt"
 
 [[sources]]
-id = "zen-kaku-26-795819a9"
-version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
-url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Black.ttf"
-sha256 = "795819a979184981842994d8f4eb9e14ce443d687bd5e731d6ca67ded8f92261"
-format = "ttf"
-filename = "ZenKakuGothicNew-Black.ttf"
-
-[[sources]]
-id = "zen-kaku-25-0081ceda"
+id = "zen-kaku-bold"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Bold.ttf"
 sha256 = "0081cedabc4921982fcd061f845a005664ac7fb642af2dd34b4007bc63ccd235"
@@ -168,7 +144,7 @@ format = "ttf"
 filename = "ZenKakuGothicNew-Bold.ttf"
 
 [[sources]]
-id = "zen-kaku-26-ad4e9733"
+id = "zen-kaku-light"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Light.ttf"
 sha256 = "ad4e9733f96397ed0c99c295d9b3b56e39a0e0bc02b0ac56ce3ade7793a1eef1"
@@ -176,15 +152,7 @@ format = "ttf"
 filename = "ZenKakuGothicNew-Light.ttf"
 
 [[sources]]
-id = "zen-kaku-27-651a3f72"
-version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
-url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Medium.ttf"
-sha256 = "651a3f7280b7f36262601ee76d8388a8dc4372dcc67aff025a608939a562b525"
-format = "ttf"
-filename = "ZenKakuGothicNew-Medium.ttf"
-
-[[sources]]
-id = "zen-kaku-28-b840cd07"
+id = "zen-kaku-regular"
 version = "bbda7253fc363238b05d97515ca71f8ae49c4fa9"
 url = "https://raw.githubusercontent.com/google/fonts/bbda7253fc363238b05d97515ca71f8ae49c4fa9/ofl/zenkakugothicnew/ZenKakuGothicNew-Regular.ttf"
 sha256 = "b840cd07a67d89cacca44249ae49aa99ee7640eb5ce623be8d8983d6aabac801"
@@ -197,6 +165,7 @@ version = "20260828"
 url = "https://github.com/line/seed/releases/download/v20260828/seed-v20260828.zip"
 sha256 = "58dee0e2b140c3b3d4769b34059fa7150aee7d3c8326358bd87c0879ef98a5b7"
 format = "zip"
+font_format = "otf"
 
 [[sources]]
 id = "cascadia-license"

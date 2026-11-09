@@ -1,8 +1,15 @@
 """Static source instantiation, keeping source files immutable."""
+import hashlib
+import json
+import os
+import tempfile
 from pathlib import Path
 
+from fontTools import version
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
+
+from .downloader import sha256
 
 
 def load_static(path: str | Path, weight: int, italic: bool = False) -> TTFont:
@@ -33,15 +40,6 @@ def load_static(path: str | Path, weight: int, italic: bool = False) -> TTFont:
 def load_cached_static(path: str | Path, weight: int, italic: bool = False,
                        cache: Path = Path('cache/instances')) -> TTFont:
     """Reuse verified static instances with content and dependency keyed entries."""
-    import hashlib
-    import json
-    import os
-    import tempfile
-
-    from fontTools import version
-
-    from .downloader import sha256
-
     path = Path(path)
     key = hashlib.sha256(json.dumps([sha256(path), weight, italic, version],
                                     separators=(',', ':')).encode()).hexdigest()

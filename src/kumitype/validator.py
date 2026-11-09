@@ -1,21 +1,25 @@
 """Binary integrity and protected-source invariants."""
+import hashlib
+import json
+from dataclasses import asdict
+from importlib.metadata import version
 from io import BytesIO
 from pathlib import Path
 
 from fontTools.ttLib import TTFont
 
-from .glyph_selector import private_use
+from .config import Target, targets
+from .downloader import sha256
+from .glyph_selector import cell_count, private_use
+from .metadata import metadata_errors
+from .shaping import compare_shaping
 
 
 def validate(path: str | Path, base_path: str | Path | None = None, *,
              project_version: str | None = None) -> dict:
-    from importlib.metadata import version
-
-    from .metadata import metadata_errors
-
     if project_version is None:
         project_version = version('KumiType')
-    errors = []
+    errors: list[str] = []
     with TTFont(path, recalcTimestamp=False) as font:
         required = {'head', 'hhea', 'hmtx', 'maxp', 'OS/2', 'name', 'cmap', 'post', 'glyf', 'loca'}
         errors.extend(f'Missing table: {tag}' for tag in sorted(required - set(font.keys())))
@@ -80,10 +84,6 @@ def validate(path: str | Path, base_path: str | Path | None = None, *,
 
 def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dict]:
     """Revalidate tracked outputs, including manifest hashes and source invariants."""
-    import json
-
-    from .downloader import sha256
-
     results = []
     names = {}
     for path in sorted(root.rglob('*.ttf')):
@@ -97,7 +97,6 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
             result = validate(path, base,
                               project_version=manifest.get('config', {}).get('project', {}).get('version'))
             if 'config_sha256' in manifest:
-                import hashlib
                 config_digest = hashlib.sha256(json.dumps(manifest['config'], sort_keys=True,
                     separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
                 if config_digest != manifest['config_sha256']:
@@ -117,14 +116,12 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
                 names[ps] = str(path)
                 cmap = font.getBestCmap() or {}
                 cell = manifest['merge']['cell_width']
-                from .glyph_selector import cell_count
                 result['errors'].extend(check_halfwidth_kana(cmap, font['hmtx'].metrics, cell))
                 for cp in manifest['merge']['added_codepoints']:
                     if cp not in cmap:
                         result['errors'].append(f'Missing imported character: U+{cp:04X}')
                     elif font['hmtx'].metrics[cmap[cp]][0] != cell * cell_count(cp):
                         result['errors'].append(f'Incorrect cell width: U+{cp:04X}')
-            from .shaping import compare_shaping
             result['shaping'] = compare_shaping(Path(base), path, harfbuzz)
             result['errors'].extend(result['shaping']['errors'])
             result['valid'] = not result['errors']
@@ -137,11 +134,6 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
 
 def audit_matrix(config: dict, root=Path('build')) -> dict:
     """Check the complete requested matrix, rather than merely counting files."""
-    import json
-    from dataclasses import asdict
-
-    from .config import Target, targets
-
     expected = set(targets(config))
     observed = {}
     errors = []

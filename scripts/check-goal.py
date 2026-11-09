@@ -48,7 +48,8 @@ def command(args, cwd=ROOT):
 
 def check_g1():
     evidence = [command(['uv', 'run', '--locked', 'pytest']),
-                command(['uv', 'run', '--locked', 'ruff', 'check', 'src', 'tests', 'scripts'])]
+                command(['uv', 'run', '--locked', 'ruff', 'check', 'src', 'tests', 'scripts']),
+                command(['uv', 'run', '--locked', 'mypy', 'src'])]
     return outcome(all(item['returncode'] == 0 for item in evidence), evidence)
 
 

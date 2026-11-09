@@ -1,20 +1,20 @@
 """Family archives with verified fonts, provenance and upstream licenses."""
+import hashlib
 import json
 import os
-from datetime import datetime, timezone
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from fontTools.ttLib import TTFont
 
-from .downloader import sha256
 from .artifacts import atomic_output
-from .validator import validate
 from .config import Target
+from .downloader import sha256
 from .metadata import expected_identity
 from .source_registry import locked_manifests
-
+from .validator import validate
 
 RUNTIME_FIELDS = frozenset(('generated_at', 'duration_seconds', 'process_peak_rss_kib'))
 
@@ -38,7 +38,6 @@ def packaged_manifest(manifest: dict) -> dict:
 
     result = portable(manifest)
     if 'config_sha256' in result:
-        import hashlib
 
         result['config_sha256'] = hashlib.sha256(json.dumps(
             result['config'], sort_keys=True, separators=(',', ':'),
@@ -64,7 +63,7 @@ def zip_datetime() -> tuple:
 
 def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
                 lock=Path('config/sources.lock.toml')) -> list[Path]:
-    groups = {}
+    groups: dict[str, list[tuple[Path, dict]]] = {}
     for path in sorted(root.rglob('*.ttf')):
         manifest_path = path.with_suffix('.json')
         if not manifest_path.exists():
