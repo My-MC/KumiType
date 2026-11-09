@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .downloader import sha256
+from .config import resolve_path
 from .font_converter import load_cached_static, load_static
 from .merger import merge_many
 from .metadata import JP_NAMES, WEIGHT_NAMES, apply_metadata
@@ -19,7 +20,7 @@ from .source_registry import locked_manifests
 
 def choose_donor(source: Path, identifier: str, weight: int, lock=Path('config/sources.lock.toml')) -> tuple[Path, dict]:
     candidates = []
-    for data in locked_manifests(source, lock):
+    for data in locked_manifests(source, lock, identifiers=(identifier,)):
         if data['id'] != identifier and not data['id'].startswith(identifier + '-'):
             continue
         for info in data['fonts']:
@@ -53,8 +54,12 @@ def choose_donor(source: Path, identifier: str, weight: int, lock=Path('config/s
     return Path(path), info
 
 
-def build_one(config: dict, target, source=Path('source'), output=Path('build')) -> Path:
+def build_one(config: dict, target, source=None, output=None) -> Path:
     started = time.monotonic()
+    paths = config.get('paths', {})
+    source = resolve_path(config, source or paths.get('source', 'source'))
+    output = resolve_path(config, output or paths.get('build', 'build'))
+    cache = resolve_path(config, paths.get('cache', 'cache'))
     version = config['sources']['cascadia']['version']
     variant = target.base.replace('-pl', 'PL').replace('-nf', 'NF')
     variant = variant[0].upper() + variant[1:]
@@ -64,7 +69,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
     base_path = source / 'cascadia' / version / 'ttf/static' / f'Cascadia{variant}-{style}.ttf'
     if not base_path.exists():
         raise ValueError(f'Missing Cascadia {version} source: {base_path}')
-    lock = Path(config.get('sources', {}).get('lock', 'config/sources.lock.toml'))
+    lock = resolve_path(config, config.get('sources', {}).get('lock', 'config/sources.lock.toml'))
     manifests = locked_manifests(source, lock)
     base_record = next((record for record in manifests
                         if record['id'] == 'cascadia' and record['version'] == version), None)
@@ -80,7 +85,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
     if rendering.get('japanese_italic', 'upright') != 'upright':
         raise ValueError('Synthetic Japanese italic is not yet implemented')
     base = load_static(base_path, target.weight, target.style == 'italic')
-    donor = load_cached_static(donor_path, target.weight)
+    donor = load_cached_static(donor_path, target.weight, cache=cache / 'instances')
     extra_donors = []
     extra_paths = list(dict.fromkeys(Path(path) for path in [
         *info.get('subset_paths', []),
@@ -89,7 +94,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
         unicode_overrides = {int(str(cp), 16): preference for cp, preference in
                              config.get('unicode_overrides', {}).items()}
         for path in extra_paths:
-            extra_donors.append(load_cached_static(path, target.weight))
+            extra_donors.append(load_cached_static(path, target.weight, cache=cache / 'instances'))
         outline_cache = None
         if not extra_donors:
             outline_cache = OutlineCache({
@@ -100,7 +105,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
                 'halfwidth_kana_scale': rendering.get('halfwidth_kana_scale', 1),
                 'baseline': rendering.get('baseline_offset', 0),
                 'fit_overflow': rendering.get('fit_overflow', True),
-                'fit_margin': rendering.get('fit_margin', 0.02)})
+                'fit_margin': rendering.get('fit_margin', 0.02)}, root=cache / 'outlines')
         report = merge_many(base, [donor, *extra_donors],
                             halfwidth_kana_scale=rendering.get('halfwidth_kana_scale', 1), outline_cache=outline_cache, overrides=unicode_overrides, jp_scale=rendering.get('jp_scale', 1),
                        baseline_offset=rendering.get('baseline_offset', 0),
@@ -153,7 +158,7 @@ def build_one(config: dict, target, source=Path('source'), output=Path('build'))
     return destination
 
 
-def build_all(config: dict, jobs=None, source=Path('source'), output=Path('build')) -> list[str]:
+def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
     """Execute the configured matrix, never silently omitting failed targets."""
     from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
@@ -161,6 +166,8 @@ def build_all(config: dict, jobs=None, source=Path('source'), output=Path('build
 
     from .resources import worker_count
 
+    source = resolve_path(config, source or config.get('paths', {}).get('source', 'source'))
+    output = resolve_path(config, output or config.get('paths', {}).get('build', 'build'))
     settings = config.get('build', {})
     jobs = worker_count(jobs if jobs is not None else settings.get('jobs', 'auto'),
                         worker_memory_mb=settings.get('worker_memory_mb', 2048),

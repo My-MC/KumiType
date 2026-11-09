@@ -1,5 +1,7 @@
 """Family archives with verified fonts, provenance and upstream licenses."""
 import json
+import os
+from datetime import datetime, timezone
 import zipfile
 from pathlib import Path
 
@@ -11,6 +13,30 @@ from .validator import validate
 from .config import Target
 from .metadata import expected_identity
 from .source_registry import locked_manifests
+
+
+RUNTIME_FIELDS = frozenset(('generated_at', 'duration_seconds', 'process_peak_rss_kib'))
+
+
+def packaged_manifest(manifest: dict) -> dict:
+    """Keep provenance and checksums, omitting measurements of this execution."""
+    return {key: value for key, value in manifest.items() if key not in RUNTIME_FIELDS}
+
+
+def json_bytes(value: dict) -> bytes:
+    return (json.dumps(value, sort_keys=True, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+
+
+def zip_datetime() -> tuple:
+    """Use UTC, clamped to the DOS range, rounded down to two seconds."""
+    raw = os.environ.get('SOURCE_DATE_EPOCH', '315532800')
+    try:
+        epoch = int(raw)
+    except ValueError as exc:
+        raise ValueError('SOURCE_DATE_EPOCH must be an integer') from exc
+    epoch = min(max(epoch, 315532800), 4354819198)
+    value = datetime.fromtimestamp(epoch - epoch % 2, timezone.utc)
+    return value.timetuple()[:6]
 
 
 def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
@@ -58,30 +84,37 @@ def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
                 extra_licenses[entry['sha256']] = path
         destination = output / (family.replace(' ', '-') + '.zip')
         copyright_text = []
+        entries = {}
+        for path, manifest in fonts:
+            entries[path.name] = path.read_bytes()
+            entries['manifests/' + path.stem + '.json'] = json_bytes(packaged_manifest(manifest))
+            with TTFont(path) as font:
+                copyright_text.append(font['name'].getDebugName(0) or '')
+        for identifier, path in sorted(licenses):
+            entries['licenses/' + identifier + '/' + path.name] = path.read_bytes()
+            provenance = next((parent / 'source-manifest.json' for parent in path.parents
+                               if (parent / 'source-manifest.json').exists()), None)
+            if provenance is not None:
+                entries['sources/' + identifier + '.json'] = json_bytes(
+                    packaged_manifest(json.loads(provenance.read_text(encoding='utf-8'))))
+        for digest, path in sorted(extra_licenses.items()):
+            entries['licenses/additional/' + digest[:16] + '-' + path.name] = path.read_bytes()
+        versions = sorted({manifest['config']['project'].get('version', 'unknown')
+                           for _, manifest in fonts})
+        entries['VERSION.txt'] = ('\n'.join(versions) + '\n').encode('utf-8')
+        entries['COPYRIGHT.txt'] = '\n\n'.join(sorted(set(copyright_text))).encode('utf-8')
+        entries['README.txt'] = (family + '\nModified composite font built by KumiType.\n'
+                               'Cascadia layout preserved; Japanese outlines added without donor hinting.\n'
+                               'See manifests for versions, source URLs, settings and checksums.\n').encode('utf-8')
+        timestamp = zip_datetime()
         with atomic_output(destination) as temporary:
-            with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-                for path, manifest in fonts:
-                    archive.write(path, path.name)
-                    archive.write(path.with_suffix('.json'), 'manifests/' + path.stem + '.json')
-                    with TTFont(path) as font:
-                        copyright_text.append(font['name'].getDebugName(0) or '')
-                for identifier, path in licenses:
-                    archive.write(path, 'licenses/' + identifier + '/' + path.name)
-                    provenance = path.parent / 'source-manifest.json'
-                    if not provenance.exists():
-                        provenance = next((parent / 'source-manifest.json' for parent in path.parents
-                                           if (parent / 'source-manifest.json').exists()), None)
-                    if provenance is not None and provenance.exists():
-                        archive.write(provenance, 'sources/' + identifier + '.json')
-                for digest, path in sorted(extra_licenses.items()):
-                    archive.write(path, 'licenses/additional/' + digest[:16] + '-' + path.name)
-                versions = sorted({manifest['config']['project'].get('version', 'unknown')
-                                   for _, manifest in fonts})
-                archive.writestr('VERSION.txt', '\n'.join(versions) + '\n')
-                archive.writestr('COPYRIGHT.txt', '\n\n'.join(dict.fromkeys(copyright_text)))
-                archive.writestr('README.txt', family + '\nModified composite font built by KumiType.\n'
-                                 'Cascadia layout preserved; Japanese outlines added without donor hinting.\n'
-                                 'See manifests for versions, source URLs, settings and checksums.\n')
+            with zipfile.ZipFile(temporary, 'w') as archive:
+                for name, payload in sorted(entries.items()):
+                    info = zipfile.ZipInfo(name, date_time=timestamp)
+                    info.create_system = 3
+                    info.external_attr = 0o100644 << 16
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    archive.writestr(info, payload, compresslevel=9)
         archives.append(destination)
     if not archives:
         raise ValueError('No validated generated fonts found')

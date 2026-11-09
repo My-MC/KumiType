@@ -6,6 +6,8 @@ import json
 import zipfile
 from pathlib import Path
 
+from kumitype.packager import packaged_manifest
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--build-dir', type=Path, default=Path('build'))
 parser.add_argument('--dist-dir', type=Path, default=Path('dist'))
@@ -31,7 +33,7 @@ for path in archives:
             observed.add(name)
             manifest = json.loads(archive.read('manifests/' + Path(name).stem + '.json'))
             matches = list(args.build_dir.rglob(Path(name).stem + '.json'))
-            if len(matches) != 1 or json.loads(matches[0].read_text(encoding='utf-8')) != manifest:
+            if len(matches) != 1 or packaged_manifest(json.loads(matches[0].read_text(encoding='utf-8'))) != manifest:
                 raise ValueError(f'Packaged manifest differs from build manifest: {name}')
             if hashlib.sha256(archive.read(name)).hexdigest() != manifest['sha256']:
                 raise ValueError(f'Font hash differs: {name}')

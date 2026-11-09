@@ -6,17 +6,71 @@ import shutil
 from pathlib import Path
 
 
-def doctor(source=Path('source'), output=Path('build'), lock=Path('config/sources.lock.toml')) -> dict:
+def doctor(source=Path('source'), output=Path('build'), lock=Path('config/sources.lock.toml'),
+           config=None) -> dict:
     from .source_registry import source_status
 
     output.mkdir(parents=True, exist_ok=True)
     sources = source_status(lock, source)
+    required_errors = []
+    required_ids = {row['id'] for row in sources}
+    if config is not None:
+        from .builder import choose_donor
+        from .config import targets
+        from .metadata import WEIGHT_NAMES
+        from .source_registry import locked_manifests
+        from .downloader import sha256
+
+        required_ids = {'cascadia', 'cascadia-license'}
+        required_paths = set()
+        manifests = locked_manifests(source, lock, identifiers=('cascadia', *config['japanese_fonts']))
+        for japanese in config['japanese_fonts']:
+            for weight in config['weights']:
+                try:
+                    donor, info = choose_donor(source, japanese, weight, lock)
+                    required_paths.update([donor, *map(Path, info['subset_paths'])])
+                except (OSError, ValueError) as exc:
+                    required_errors.append(str(exc))
+        for target in targets(config):
+            variant = target.base.replace('-pl', 'PL').replace('-nf', 'NF')
+            variant = variant[0].upper() + variant[1:]
+            style = WEIGHT_NAMES[target.weight]
+            if target.style == 'italic':
+                style = 'Italic' if target.weight == 400 else style + 'Italic'
+            required_paths.add(source / 'cascadia' / config['sources']['cascadia']['version'] /
+                               'ttf/static' / f'Cascadia{variant}-{style}.ttf')
+        for record in manifests:
+            if any(Path(info['path']) in required_paths for info in record.get('fonts', [])):
+                required_ids.add(record['id'])
+        for japanese in config['japanese_fonts']:
+            license_id = japanese + '-license'
+            if any(row['id'] == license_id for row in sources):
+                required_ids.add(license_id)
+            else:
+                embedded = [source / record['id'] / record['version']
+                            for record in manifests if record['id'] == japanese]
+                if not any(path.name.lower() in ('license', 'license.txt', 'ofl.txt')
+                           for folder in embedded for path in folder.rglob('*') if path.is_file()):
+                    required_errors.append(f'Missing Japanese license: {japanese}')
+        known = {Path(info['path']): info for record in manifests for info in record.get('fonts', [])}
+        for path in required_paths:
+            if path not in known or not path.exists() or sha256(path) != known[path]['sha256']:
+                required_errors.append(f'Missing or modified required font: {path}')
+        # Unselected files in an installed font record are informational only.
+        selected_status = source_status(lock, source, required_paths=required_paths)
+        by_id = {row['id']: row for row in selected_status}
+        sources = [by_id[row['id']] if row['id'] in required_ids else row for row in sources]
+        for identifier in required_ids - {row['id'] for row in sources}:
+            required_errors.append(f'Missing required lock record: {identifier}')
+    for row in sources:
+        row['required'] = row['id'] in required_ids
     return {
         'python': platform.python_version(),
         'packages': {name: importlib.metadata.version(name) for name in ('fonttools', 'PyYAML')},
         'tools': {name: shutil.which(name) for name in ('hb-shape', 'fc-scan', 'docker', 'podman')},
         'sources': sources,
-        'sources_ready': all(record['ready'] for record in sources),
+        'sources_ready': not required_errors and all(record['ready'] for record in sources if record['required']),
+        'required_errors': required_errors,
         'source_manifests': len(list(source.rglob('source-manifest.json'))),
         'free_disk_bytes': shutil.disk_usage(output).free,
         'output_writable': os.access(output, os.W_OK),

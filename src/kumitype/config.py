@@ -113,7 +113,28 @@ def load(path: str | Path) -> dict:
             raise ValueError(f'Invalid Unicode scalar: {cp}')
         if preference not in ('cascadia', 'japanese'):
             raise ValueError(f'Invalid Unicode preference: {preference}')
+    root = Path(path).resolve().parent
+    if root.name == 'config':
+        root = root.parent
+    data['_project_root'] = str(root)
+    paths = data.setdefault('paths', {})
+    if not isinstance(paths, dict):
+        raise ValueError('paths: expected a mapping')
+    for key, default in [('source', 'source'), ('cache', 'cache'), ('build', 'build'), ('dist', 'dist')]:
+        paths[key] = str(resolve_path(data, paths.get(key, default)))
+    sources = data.setdefault('sources', {})
+    sources['lock'] = str(resolve_path(data, sources.get('lock', 'config/sources.lock.toml')))
+    for override in data.get('font_overrides', {}).values():
+        for key in ('subset_files', 'subset_licenses'):
+            if key in override:
+                override[key] = [str(resolve_path(data, item)) for item in override[key]]
     return data
+
+
+def resolve_path(config: dict, path: str | Path) -> Path:
+    """Resolve project paths independently of the caller's working directory."""
+    root = Path(config.get('_project_root', Path(__file__).resolve().parents[2]))
+    return (root / path).resolve()
 
 
 def targets(config: dict) -> list[Target]:
