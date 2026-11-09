@@ -12,6 +12,8 @@ rendering:
   width_ratio: "1:2"
   jp_scale: 1.0
   baseline_offset: 0
+  fit_overflow: true
+  fit_margin: 0.02
   japanese_italic: upright
 build:
   output_format: ttf

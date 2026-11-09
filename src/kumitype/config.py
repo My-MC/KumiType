@@ -93,11 +93,15 @@ def load(path: str | Path) -> dict:
             raise ValueError(f'Invalid font override: {identifier}')
         rendering_groups.append(override)
     for rendering in rendering_groups:
-        for key in ('jp_scale', 'baseline_offset', 'halfwidth_kana_scale'):
+        if 'fit_overflow' in rendering and not isinstance(rendering['fit_overflow'], bool):
+            raise ValueError('fit_overflow: expected a boolean')
+        for key in ('jp_scale', 'baseline_offset', 'halfwidth_kana_scale', 'fit_margin'):
             if key in rendering:
                 value = rendering[key]
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                     raise ValueError(f'{key}: expected a finite number')
+                if key == 'fit_margin' and not 0 <= value < 0.5:
+                    raise ValueError('fit_margin: expected 0 <= value < 0.5')
                 if key in ('jp_scale', 'halfwidth_kana_scale') and value <= 0:
                     raise ValueError(f'{key} must be positive')
     for cp, preference in data.get('unicode_overrides', {}).items():

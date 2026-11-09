@@ -13,4 +13,8 @@
 - CIのruff対象を `src tests scripts` に統一。
 - 対応Pythonを3.14以降に変更し、Python 3.11のCIを削除（3.14未満はActive Support終了のため）。
 
+- 幅超過する日本語取り込み輪郭を1セル／2セル内へ水平縮小（既定有効）。
+  `fit_overflow`・片側余白`fit_margin`、`fitted_codepoints`と縮小後の超過記録を追加。
+  輪郭キャッシュを新形式に切り替え、設定変更時の古い輪郭の再利用を防止。
+
 受け入れ条件の全検証はまだ完了していません。
