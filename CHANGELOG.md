@@ -7,7 +7,7 @@
 - 日本語輪郭のUPM正規化、中央配置、幅設定、ベースライン調整を追加。
 - 独自ファミリー名、著作権・ライセンス統合、検証、マニフェスト、ZIPを追加。
 - Docker、OSセットアップ、CI、表示サンプルを追加。
-- G1〜G7の根拠付きJSON判定スクリプトを追加（fontbakeryはPENDING）。
+- G1〜G7の根拠付きJSON判定スクリプトを追加。
 - 生成フォントのDSIGを削除し、JIS/Japanコードページbit17、ベンダーID `NONE`、
   project.version由来のfontRevisionを設定。validatorでも各違反をエラー化。
 - CIのruff対象を `src tests scripts` に統一。
@@ -35,5 +35,11 @@
   Zen Kaku Black/Mediumを除外。既存キャッシュと旧manifest読み取りを維持。
 - mypyとPyYAML型定義をdev依存へ追加し、関数内部も含めたsrc型チェックをCIに追加。
   型注釈とimport配置を整理し、合成処理の挙動は変更しない。
+
+- FontBakery 1.1.0をdev依存に固定し、universal（OpenTypeを含む）の生JSON・
+  日本語理由付き許可リスト・WARN一覧を追加。G7で許可以外のFAILとERROR/FATALを検出。
+- 品質検査で判明したPANOSE、整数PPEMフラグ、静的wght/ital STATを修正。
+  上流由来の既知制限はチェックID＋メッセージコードの完全一致でのみ管理。
+- 手動フルビルドCIに28対象のG7と検査レポートのartifact保存を追加。
 
 全504対象・全アプリの検証までを保証するものではありません。

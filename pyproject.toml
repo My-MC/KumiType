@@ -13,6 +13,7 @@ dependencies = ["fonttools>=4.55", "PyYAML>=6.0.2"]
 
 [project.optional-dependencies]
 dev = [
+    "fontbakery==1.1.0",
     "mypy>=2.4.1",
     "pytest>=8",
     "ruff>=0.9",

@@ -13,6 +13,7 @@ import time
 
 from fontTools.ttLib import TTFont, newTable
 
+from kumitype.fontbakery import run_checks
 from kumitype.builder import build_one
 from kumitype.config import JAPANESE_FONTS, Target, load
 from kumitype.metadata import JP_NAMES, expected_identity, font_revision, metadata_errors
@@ -302,6 +303,11 @@ def check_g6(config):
         return outcome(options and locks and listing['external_cwd_ok'] and cache_ok, evidence)
 
 
+def check_g7(paths, root):
+    report = run_checks(paths, root / 'fontbakery', ROOT / 'config/fontbakery-allowlist.json')
+    return outcome(report['valid'], report)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--only', type=select_goals, default=list(GOALS))
@@ -314,16 +320,17 @@ def main(argv=None):
     paths, build_error = None, None
     for goal in args.only:
         try:
-            if goal in ('G2', 'G4') and paths is None and build_error is None:
+            if goal in ('G2', 'G4', 'G7') and paths is None and build_error is None:
                 try:
                     paths = ensure_subset(root, config, args.reuse)
                 except Exception as exc:
                     build_error = f'{type(exc).__name__}: {exc}'
             if goal == 'G1':
                 result = check_g1()
-            elif goal in ('G2', 'G4'):
+            elif goal in ('G2', 'G4', 'G7'):
                 result = (outcome(False, [build_error]) if build_error else
-                          check_g2(paths, config) if goal == 'G2' else check_g4(paths))
+                          check_g2(paths, config) if goal == 'G2' else
+                          check_g4(paths) if goal == 'G4' else check_g7(paths, root))
             elif goal == 'G3':
                 with tempfile.TemporaryDirectory(prefix='kumitype-invalid-') as temporary:
                     result = check_g3(Path(temporary), config['project']['version'])
@@ -332,7 +339,7 @@ def main(argv=None):
             elif goal == 'G6':
                 result = check_g6(config)
             else:
-                result = {'status': 'PENDING', 'evidence': ['fontbakery gate is not implemented yet']}
+                raise ValueError(f'Unknown goal: {goal}')
         except Exception as exc:
             result = outcome(False, [f'{type(exc).__name__}: {exc}'])
         results[goal] = result

@@ -27,13 +27,21 @@ def test_subset_is_exactly_28_paired_targets():
     assert {(t.weight, t.style) for t in matrix} == {(400, 'normal'), (700, 'italic')}
 
 
-def test_pending_is_json_and_success_from_external_cwd(tmp_path):
-    assert SCRIPT.exists()
-    result = subprocess.run([sys.executable, str(SCRIPT), '--only', 'G7',
+def test_g7_missing_subset_is_json_failure_from_external_cwd(tmp_path):
+    result = subprocess.run([sys.executable, str(SCRIPT), '--only', 'G7', '--reuse',
                              '--build-dir', str(tmp_path / 'outputs')],
                             cwd=tmp_path, capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout)['goals']['G7']['status'] == 'PENDING'
+    assert result.returncode == 1, result.stderr
+    data = json.loads(result.stdout)['goals']['G7']
+    assert data['status'] == 'FAIL'
+    assert 'Missing subset' in str(data['evidence'])
+
+
+@pytest.mark.parametrize('valid', [True, False])
+def test_g7_uses_real_runner_result(tmp_path, monkeypatch, valid):
+    module = runner()
+    monkeypatch.setattr(module, 'run_checks', lambda paths, output, allowlist: {'valid': valid})
+    assert module.check_g7([tmp_path / 'font.ttf'], tmp_path)['status'] == ('PASS' if valid else 'FAIL')
 
 
 def test_unknown_goal_is_rejected():

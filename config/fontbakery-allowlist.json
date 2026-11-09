@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    {
+      "check_id": "arabic_high_hamza",
+      "code": "mark-in-gdef",
+      "reason": "Cascadia由来のU+0674とGDEF分類をそのまま継承する。日本語合成で既存のアラビア語シェーピングを変更しないため、この上流由来の指摘のみ許可する。"
+    },
+    {
+      "check_id": "case_mapping",
+      "code": "missing-case-counterparts",
+      "reason": "固定したCascadiaと日本語ドナーの収録文字集合を保持する。Unicode更新による対文字やドナー未収録の大小文字は新規に創作せず、未収録文字として扱う。"
+    },
+    {
+      "check_id": "nested_components",
+      "code": "found-nested-components",
+      "reason": "CascadiaのグリフID・輪郭・ヒンティング・GSUB/GPOSを維持するため、既存の入れ子複合グリフを分解しない。OpenTypeで有効な構造であり、OTSとFreeTypeの実検査は別途実行する。"
+    }
+  ]
+}
