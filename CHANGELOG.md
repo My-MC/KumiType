@@ -11,5 +11,6 @@
 - 生成フォントのDSIGを削除し、JIS/Japanコードページbit17、ベンダーID `NONE`、
   project.version由来のfontRevisionを設定。validatorでも各違反をエラー化。
 - CIのruff対象を `src tests scripts` に統一。
+- 対応Pythonを3.14以降に変更し、Python 3.11のCIを削除（3.14未満はActive Support終了のため）。
 
 受け入れ条件の全検証はまだ完了していません。

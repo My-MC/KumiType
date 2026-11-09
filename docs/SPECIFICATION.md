@@ -4,7 +4,7 @@
 
 **文書バージョン：** 1.0  
 **作成日：** 2026年11月5日  
-**開発言語：** Python 3.11以降  
+**開発言語：** Python 3.14以降  
 **対象環境：** Fedora / RHEL系 / Debian系 / Docker  
 **実装担当：** Codex
 
@@ -120,7 +120,7 @@ Italicについて、日本語フォントにItalicが存在しない場合は�
 
 ### 3.1 必須技術
 
-- Python 3.11以降
+- Python 3.14以降
 - fontTools
 - pytest
 - Ruff
