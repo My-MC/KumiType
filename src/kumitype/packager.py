@@ -26,7 +26,8 @@ def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
         identity = expected_identity(Target(**manifest['target']), manifest['config']['project'])
         if manifest['identity'] != identity:
             raise ValueError(f'Obsolete font naming; rebuild required: {path}')
-        checked = validate(path, manifest['sources'][0]['path'])
+        checked = validate(path, manifest['sources'][0]['path'],
+                           project_version=manifest['config']['project'].get('version'))
         if not checked['valid']:
             raise ValueError(f'Font failed current validation: {path}: {checked["errors"]}')
         groups.setdefault(manifest['identity']['family'], []).append((path, manifest))

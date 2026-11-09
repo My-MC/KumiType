@@ -7,6 +7,45 @@ JP_NAMES = {'plex': 'IBMJP', 'biz': 'BIZ', 'noto': 'Noto', 'line-seed': 'LINESee
             'mplus1': 'MPlus1', 'mplus2': 'MPlus2', 'zen-kaku': 'ZenKaku'}
 
 
+def font_revision(version: str) -> float:
+    """Encode major.minor.patch as major.minorPP in OpenType 16.16.
+
+    Patch uses two decimal places (0.1.0 -> 0.100); reject unrepresentable
+    versions rather than silently dropping a release component.
+    """
+    from fontTools.misc.fixedTools import floatToFixedToFloat
+
+    match = re.fullmatch(r'(\d+)\.(\d+)\.(\d{1,2})', version)
+    if not match:
+        raise ValueError(f'Unsupported font version: {version}')
+    major, minor, patch = match.groups()
+    if len(minor) != 1:
+        raise ValueError(f'Unsupported font version (minor must be 0-9): {version}')
+    value = float(f'{major}.{minor}{int(patch):02d}')
+    if value >= 32768:
+        raise ValueError(f'Font version exceeds 16.16 range: {version}')
+    return floatToFixedToFloat(value, 16)
+
+
+def metadata_errors(font, version: str) -> list[str]:
+    """Return independent errors for the generated-font metadata contract."""
+    errors = []
+    if 'DSIG' in font:
+        errors.append('DSIG must be absent after modification')
+    if not font['OS/2'].ulCodePageRange1 & (1 << 17):
+        errors.append('OS/2.ulCodePageRange1 bit17 (JIS/Japan) is not set')
+    if font['OS/2'].achVendID != 'NONE':
+        errors.append("OS/2.achVendID must be NONE")
+    try:
+        expected = font_revision(version)
+    except ValueError as exc:
+        errors.append(str(exc))
+    else:
+        if font['head'].fontRevision != expected:
+            errors.append(f'head.fontRevision differs from project.version {version}')
+    return errors
+
+
 def apply_metadata(font, donor, target, project: dict, additional_donors=()) -> dict:
     weight_name = WEIGHT_NAMES[target.weight]
     italic = target.style == 'italic'
@@ -32,6 +71,11 @@ def apply_metadata(font, donor, target, project: dict, additional_donors=()) -> 
     for identifier, text in values.items():
         if text:
             names.setName(text, identifier, 3, 1, 0x409)
+    if 'DSIG' in font:
+        del font['DSIG']
+    font['OS/2'].ulCodePageRange1 |= 1 << 17
+    font['OS/2'].achVendID = 'NONE'
+    font['head'].fontRevision = font_revision(project['version'])
     font['OS/2'].usWeightClass = target.weight
     selection = font['OS/2'].fsSelection & ~((1 << 0) | (1 << 5) | (1 << 6))
     selection |= int(italic) | (int(bold) << 5) | (int(not bold and not italic) << 6)

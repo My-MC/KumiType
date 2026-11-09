@@ -7,13 +7,21 @@ from fontTools.ttLib import TTFont
 from .glyph_selector import private_use
 
 
-def validate(path: str | Path, base_path: str | Path | None = None) -> dict:
+def validate(path: str | Path, base_path: str | Path | None = None, *,
+             project_version: str | None = None) -> dict:
+    from importlib.metadata import version
+
+    from .metadata import metadata_errors
+
+    if project_version is None:
+        project_version = version('KumiType')
     errors = []
     with TTFont(path, recalcTimestamp=False) as font:
         required = {'head', 'hhea', 'hmtx', 'maxp', 'OS/2', 'name', 'cmap', 'post', 'glyf', 'loca'}
         errors.extend(f'Missing table: {tag}' for tag in sorted(required - set(font.keys())))
         if errors:
             return {'valid': False, 'errors': errors}
+        errors.extend(metadata_errors(font, project_version))
         order = font.getGlyphOrder()
         cmap = font.getBestCmap() or {}
         if 'fvar' in font:
@@ -86,7 +94,8 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
                 continue
             manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
             base = manifest['sources'][0]['path']
-            result = validate(path, base)
+            result = validate(path, base,
+                              project_version=manifest.get('config', {}).get('project', {}).get('version'))
             if 'config_sha256' in manifest:
                 import hashlib
                 config_digest = hashlib.sha256(json.dumps(manifest['config'], sort_keys=True,
