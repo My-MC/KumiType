@@ -10,12 +10,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 
 from fontTools.ttLib import TTFont, newTable
 
 from kumitype.fontbakery import run_checks
 from kumitype.builder import build_one
 from kumitype.config import JAPANESE_FONTS, Target, load
+from kumitype.glyph_selector import cell_count
 from kumitype.metadata import JP_NAMES, expected_identity, font_revision, metadata_errors
 from kumitype.packager import package_all
 from kumitype.validator import validate
@@ -172,6 +174,11 @@ def check_g4(paths):
                 if cp not in cmap:
                     errors.append(f'Missing imported character U+{cp:04X}')
             names = imported_names | {cmap[cp] for cp in declared if cp in cmap}
+            marks = {name: cp for cp, name in cmap.items() if name in names
+                     and unicodedata.category(chr(cp)) in ('Mn', 'Me')}
+            actual_marks = set(marks.values())
+            if set(manifest['merge'].get('zero_width_mark_codepoints', [])) != actual_marks:
+                errors.append('Zero-width mark inventory differs from binary')
             if not names:
                 errors.append('No imported glyphs to inspect')
             for name in sorted(names):
@@ -179,7 +186,15 @@ def check_g4(paths):
                 glyph.recalcBounds(font['glyf'])
                 width = getattr(glyph, 'xMax', 0) - getattr(glyph, 'xMin', 0)
                 advance = font['hmtx'][name][0]
-                if width > advance:
+                limit = advance
+                if name in marks:
+                    cell = font['hmtx'][cmap[32]][0]
+                    limit = cell * cell_count(marks[name])
+                    if advance != 0:
+                        errors.append(f'Nonzero imported mark advance: {name}')
+                    if glyph.numberOfContours and (glyph.xMin < -limit or glyph.xMax > 0):
+                        errors.append(f'Imported mark outside preceding reference cell: {name}')
+                if width > limit:
                     overflow.append({'glyph': name, 'width': width, 'advance': advance})
         evidence.append({'path': str(path), 'imported': len(names), 'errors': errors,
                          'overflow_count': len(overflow), 'overflow': overflow})

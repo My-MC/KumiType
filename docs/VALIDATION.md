@@ -2,6 +2,9 @@
 
 `kumitype validate --all` は生成TTF、マニフェストのハッシュ、グリフ参照、
 元グリフID、PUA、GSUB/GPOS/GDEF、追加文字の存在と送り幅を検査します。
+GSUB/GPOSは完全一致、GDEFは追加したMn/Meグリフのmark(3)分類のみを許容し、
+既存グリフの分類とその他のサブテーブルは変更を許しません。
+追加Mn/Meのadvance=0・GDEF分類・`zero_width_mark_codepoints`の実体一致も検査します。
 検証失敗や対象がない場合は終了コード1を返します。
 DSIGの残存、OS/2.ulCodePageRange1のbit17未設定、achVendIDが `NONE` 以外、
 head.fontRevisionとバージョンの不一致もエラーです。`validate()` の
@@ -116,13 +119,13 @@ WARNはG7の合否に直接影響しませんが、修正済みと見なさず�
 
 | チェックID | メッセージコード | 内容・扱い |
 |---|---|---|
-| `opentype/gdef_mark_chars` | `mark-chars` | マーク文字のGDEF分類。元のレイアウトを保持 |
+| `opentype/gdef_mark_chars` | `mark-chars` | 追加したMn/Meはゼロ幅化しGDEF mark(3)へ分類。残る指摘は変更しないCascadia由来の分類 |
 | `opentype/gdef_non_mark_chars` | `non-mark-chars` | 非マーク文字のGDEF分類。元のレイアウトを保持 |
 | `opentype/gdef_spacing_marks` | `spacing-mark-glyphs` | 有送りマークの分類。元のレイアウトを保持 |
 | `opentype/monospace` | `bad-numberOfHMetrics` | hMetricsを3個にする推奨。日英1:2幅と元GIDを保持 |
 | `opentype/monospace` | `mono-outliers` | 日本語2セル等、ASCIIと異なる送り幅 |
 | `opentype/xavgcharwidth` | `xAvgCharWidth-wrong` | 文字集合追加後の平均幅。上流の値を継承 |
-| `opentype/STAT/ital_axis` | `wrong-ital-axis-linkedvalue` | Roman/Italic間のSTAT LinkedValueは未設定 |
+| `opentype/STAT/ital_axis` | `wrong-ital-axis-linkedvalue` | 修正済み: Roman（ital=0）にLinkedValue=1.0を設定。以降のレポートで0件を確認 |
 | `alt_caron` | `decomposed-outline` | caronの構成。元の輪郭を保持 |
 | `arabic_high_hamza` | `glyph-area` | 元Cascadiaのhamzaの面積 |
 | `cjk_chws_feature` | `missing-chws-feature`, `missing-vchw-feature` | 和文の詰め・縦組み機能は移植しない |
@@ -177,7 +180,7 @@ FAILが1件でもあれば終了コード1です。G7も実行し、PENDINGは�
 | G1 | pytest、ruff（src tests scripts）、mypy（src）の終了コード・ログ |
 | G2 | TTF実体のDSIG、JIS bit17、fontRevision、achVendID |
 | G3 | 正常な合成フォントを対照に、4違反を個別注入してvalidateが対応するエラーを返すこと |
-| G4 | マニフェストの取り込み一覧に対して、実輪郭のxMax−xMinとadvanceを全件比較 |
+| G4 | 取り込み実輪郭幅をadvanceと比較。ゼロ幅Mn/MeはEAW W/Fなら2セル、それ以外1セルの直前領域内に収まりadvance=0であることを検査 |
 | G5 | 同じ出力パスで2回クリーンビルド・ZIP生成したTTF/ZIPの相対パス一覧とSHA-256一致 |
 | G6 | 外部cwdからCLIのcache-dir受付、設定lockのカナリア、list、カスタムキャッシュ実ビルドを検査 |
 | G7 | FontBakery universal（OpenTypeを含む）、許可リスト外FAIL / ERROR / FATALが0 |

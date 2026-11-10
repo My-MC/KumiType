@@ -12,7 +12,7 @@ from .artifacts import write_text
 
 class OutlineCache:
     def __init__(self, identity, root=Path('cache/outlines')):
-        key = hashlib.sha256(json.dumps([4, version, identity], sort_keys=True).encode()).hexdigest()
+        key = hashlib.sha256(json.dumps([5, version, identity], sort_keys=True).encode()).hexdigest()
         root.mkdir(parents=True, exist_ok=True)
         self.path = root / (key + '.json')
         self.entries = {}
