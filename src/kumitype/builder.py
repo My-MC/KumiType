@@ -1,21 +1,26 @@
 """Offline single-target build orchestration."""
-import json
 import hashlib
+import json
+import resource
 import time
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 
+from .artifacts import save_font, write_text
+from .config import resolve_path, targets
+from .coverage import coverage_report
 from .downloader import sha256
-from .config import resolve_path
 from .font_converter import load_cached_static, load_static
 from .merger import merge_many
 from .metadata import JP_NAMES, WEIGHT_NAMES, apply_metadata
-from .validator import validate
-from .artifacts import save_font, write_text
-from .coverage import coverage_report
 from .outline_cache import OutlineCache
 from .provenance import WORKER_PROVENANCE
+from .report import write_build_report
+from .resources import worker_count
 from .source_registry import locked_manifests
+from .validator import validate
 
 
 def choose_donor(source: Path, identifier: str, weight: int, lock=Path('config/sources.lock.toml')) -> tuple[Path, dict]:
@@ -126,8 +131,6 @@ def build_one(config: dict, target, source=None, output=None) -> Path:
     warnings = []
     if not info['axes'] and info['weight'] != target.weight:
         warnings.append(f"Nearest Japanese weight used: {info['weight']} for {target.weight}")
-    from datetime import datetime, timezone
-    import resource
 
     if coverage['missing_sample_codepoints']:
         warnings.append(f"Missing sample characters: {coverage['missing_sample_codepoints']}")
@@ -160,12 +163,6 @@ def build_one(config: dict, target, source=None, output=None) -> Path:
 
 def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
     """Execute the configured matrix, never silently omitting failed targets."""
-    from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-
-    from .config import targets
-
-    from .resources import worker_count
-
     source = resolve_path(config, source or config.get('paths', {}).get('source', 'source'))
     output = resolve_path(config, output or config.get('paths', {}).get('build', 'build'))
     settings = config.get('build', {})
@@ -203,7 +200,6 @@ def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
         if stopped:
             for target in remaining:
                 errors.append({'target': asdict(target), 'error': 'Not started after earlier failure'})
-    from .report import write_build_report
 
     write_build_report(results, errors, root=output)
     if errors:

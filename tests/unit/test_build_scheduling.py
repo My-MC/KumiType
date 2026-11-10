@@ -26,7 +26,6 @@ class InlinePool:
 
 def test_fail_fast_stops_scheduling_and_reports_unstarted(monkeypatch):
     import kumitype.builder as builder
-    import kumitype.report as report
 
     calls = []
     captured = {}
@@ -35,9 +34,9 @@ def test_fail_fast_stops_scheduling_and_reports_unstarted(monkeypatch):
         raise ValueError('source missing')
     def capture(outputs, errors, **kwargs):
         captured.update(outputs=outputs, errors=errors)
-    monkeypatch.setattr('concurrent.futures.ProcessPoolExecutor', InlinePool)
+    monkeypatch.setattr(builder, 'ProcessPoolExecutor', InlinePool)
     monkeypatch.setattr(builder, 'build_one', failing)
-    monkeypatch.setattr(report, 'write_build_report', capture)
+    monkeypatch.setattr(builder, 'write_build_report', capture)
     config = {'variants': ['mono'], 'japanese_fonts': ['biz'], 'weights': [200, 300, 400],
               'styles': ['normal'], 'build': {'fail_on_error': True}}
     with pytest.raises(ValueError, match='build errors'):

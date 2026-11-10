@@ -1,6 +1,8 @@
 """Independent family naming and legacy four-style links."""
 import re
 
+from fontTools.misc.fixedTools import floatToFixedToFloat
+
 WEIGHT_NAMES = {200: 'ExtraLight', 300: 'Light', 350: 'SemiLight',
                 400: 'Regular', 600: 'SemiBold', 700: 'Bold'}
 JP_NAMES = {'plex': 'IBMJP', 'biz': 'BIZ', 'noto': 'Noto', 'line-seed': 'LINESeed',
@@ -13,8 +15,6 @@ def font_revision(version: str) -> float:
     Patch uses two decimal places (0.1.0 -> 0.100); reject unrepresentable
     versions rather than silently dropping a release component.
     """
-    from fontTools.misc.fixedTools import floatToFixedToFloat
-
     match = re.fullmatch(r'(\d+)\.(\d+)\.(\d{1,2})', version)
     if not match:
         raise ValueError(f'Unsupported font version: {version}')

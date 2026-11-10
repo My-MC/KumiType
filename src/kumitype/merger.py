@@ -1,10 +1,20 @@
 """Append donor outlines while retaining all base glyph IDs and layout tables."""
 import unicodedata
+from typing import NotRequired, TypedDict
 
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 
 from .glyph_selector import cell_count, select_codepoints
 from .glyph_transform import fit_glyph, transform_glyph
+
+
+class MergeReport(TypedDict):
+    derived_halfwidth_codepoints: list[int]
+    added_codepoints: list[int]
+    overflow_codepoints: list[int]
+    fitted_codepoints: list[int]
+    ivs_inherited: bool
+    cell_width: NotRequired[int]
 
 
 def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outline_cache=None, halfwidth_kana_scale=1.0, fit_overflow=True, fit_margin=0.02) -> dict:
@@ -80,10 +90,10 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
             'ivs_inherited': False, 'cell_width': cell}
 
 
-def merge_many(base, donors, **options) -> dict:
+def merge_many(base, donors, **options) -> MergeReport:
     """Merge ordered subset sources, importing each Unicode scalar once."""
-    combined = {'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'fitted_codepoints': [], 'ivs_inherited': False}
-    imported = set()
+    combined: MergeReport = {'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'fitted_codepoints': [], 'ivs_inherited': False}
+    imported: set[int] = set()
     for donor in donors:
         # Earlier subsets win if their coverage overlaps.
         overrides = {**options.get('overrides', {}), **{cp: 'cascadia' for cp in imported}}

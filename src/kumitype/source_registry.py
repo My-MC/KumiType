@@ -2,9 +2,11 @@
 import json
 import re
 import shutil
+import tempfile
 import tomllib
 from pathlib import Path
 
+from .artifacts import write_text
 from .downloader import extract_zip, fetch, sha256
 from .font_inspector import inspect_font
 
@@ -25,6 +27,8 @@ def load_lock(path: Path) -> list[dict]:
             raise ValueError(f'{identifier}: an explicit pinned version is required')
         if not re.fullmatch(r'[a-f0-9]{64}', record.get('sha256', '')):
             raise ValueError(f'{identifier}: missing SHA-256')
+        if record.get('font_format', 'ttf') not in ('ttf', 'otf'):
+            raise ValueError(f'{identifier}: unsupported font format')
         if record.get('format') not in ('zip', 'ttf', 'otf', 'text'):
             raise ValueError(f'{identifier}: unsupported source format')
     return records
@@ -54,6 +58,9 @@ def locked_manifests(source: Path, lock: Path, *, identifiers=None) -> list[dict
         if any(data.get(key) != record.get(key) for key in ('id', 'version', 'sha256', 'url')):
             raise ValueError(f'Source manifest differs from lock: {path}')
         for info in data.get('fonts', []):
+            if 'codepoint_ranges' in info:
+                info['codepoints'] = [cp for start, end in info['codepoint_ranges']
+                                      for cp in range(start, end + 1)]
             info['path'] = str(manifest_font_path(source, info['path']))
         manifests.append(data)
     return manifests
@@ -78,10 +85,6 @@ def manifest_font_path(source: Path, path: str) -> Path:
 def update_lock(lock: Path, identifier: str, version: str, url: str, digest: str,
                 format: str, filename: str | None = None) -> None:
     """Replace one explicitly pinned record, preserving every other source."""
-    import tempfile
-
-    from .artifacts import write_text
-
     records = load_lock(lock)
     record = {'id': identifier, 'version': version, 'url': url,
               'sha256': digest, 'format': format}
@@ -105,6 +108,12 @@ def update_lock(lock: Path, identifier: str, version: str, url: str, digest: str
     write_text(lock, text)
 
 
+def _file_hashes(destination: Path) -> dict[str, str]:
+    return {str(path.relative_to(destination)): sha256(path)
+            for path in sorted(destination.rglob('*'))
+            if path.is_file() and path.name != 'source-manifest.json'}
+
+
 def import_source(lock: Path, identifier: str, artifact: Path,
                   source: Path = Path('source'), cache: Path = Path('cache')) -> dict:
     """Import an official locked archive or font without network access."""
@@ -119,6 +128,23 @@ def import_source(lock: Path, identifier: str, artifact: Path,
         shutil.copyfile(artifact, cached)
     destination = source / record['id'] / record['version']
     destination.mkdir(parents=True, exist_ok=True)
+    manifest = destination / 'source-manifest.json'
+    font_format = record.get('font_format', 'otf' if record['format'] == 'otf' else 'ttf')
+    try:
+        previous = json.loads(manifest.read_text(encoding='utf-8'))
+        if (isinstance(previous, dict) and previous.get('manifest_version') == 2
+                and {key: value for key, value in previous.items()
+                     if key not in ('manifest_version', 'files', 'fonts')} == record
+                and isinstance(previous.get('fonts'), list)):
+            files = _file_hashes(destination)
+            installed_fonts = {str(manifest_font_path(source, info['path']).resolve().relative_to(
+                        destination.resolve())): info['sha256'] for info in previous['fonts']}
+            expected = {path: digest for path, digest in files.items()
+                        if Path(path).suffix.lower() == '.' + font_format}
+            if previous.get('files') == files and installed_fonts == expected:
+                return previous
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
     if record['format'] == 'zip':
         extract_zip(cached, destination)
     else:
@@ -128,12 +154,18 @@ def import_source(lock: Path, identifier: str, artifact: Path,
         shutil.copyfile(cached, destination / filename)
     fonts = []
     for path in sorted(destination.rglob('*')):
-        if path.suffix.lower() in ('.ttf', '.otf'):
+        if path.suffix.lower() == '.' + font_format:
             info = inspect_font(path)
             info['sha256'] = sha256(path)
+            ranges: list[list[int]] = []
+            for cp in info.pop('codepoints'):
+                if ranges and cp == ranges[-1][1] + 1:
+                    ranges[-1][1] = cp
+                else:
+                    ranges.append([cp, cp])
+            info['codepoint_ranges'] = ranges
             fonts.append(info)
-    result = {**record, 'fonts': fonts}
-    from .artifacts import write_text
+    result = {**record, 'manifest_version': 2, 'files': _file_hashes(destination), 'fonts': fonts}
     write_text(destination / 'source-manifest.json', json.dumps(result, indent=2, ensure_ascii=False))
     return result
 

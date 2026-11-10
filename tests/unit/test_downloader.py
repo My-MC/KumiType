@@ -39,7 +39,7 @@ def test_failed_download_hash_does_not_poison_cache(tmp_path, monkeypatch):
             return 'https://example.org/font'
 
     digest = hashlib.sha256(b'expected').hexdigest()
-    monkeypatch.setattr('urllib.request.urlopen', lambda *a, **k: Response(b'wrong'))
+    monkeypatch.setattr('kumitype.downloader._open', lambda *a, **k: Response(b'wrong'))
     with pytest.raises(ValueError, match='SHA-256 mismatch'):
         fetch('https://example.org/font', digest, tmp_path)
     assert list(tmp_path.iterdir()) == []
@@ -55,7 +55,7 @@ def test_corrupt_cache_is_replaced_only_after_verification(tmp_path, monkeypatch
     content = b'valid content'
     digest = hashlib.sha256(content).hexdigest()
     (tmp_path / digest).write_bytes(b'corrupt')
-    monkeypatch.setattr('urllib.request.urlopen', lambda *a, **k: Response(content))
+    monkeypatch.setattr('kumitype.downloader._open', lambda *a, **k: Response(content))
     result = fetch('https://example.org/font', digest, tmp_path)
     assert result.read_bytes() == content
     assert len(list(tmp_path.iterdir())) == 1
