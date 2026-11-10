@@ -13,6 +13,7 @@ from .artifacts import atomic_output
 from .config import Target
 from .downloader import sha256
 from .metadata import expected_identity
+from .selection import target_path
 from .source_registry import locked_manifests
 from .validator import validate
 
@@ -62,13 +63,24 @@ def zip_datetime() -> tuple:
 
 
 def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
-                lock=Path('config/sources.lock.toml')) -> list[Path]:
+                lock=Path('config/sources.lock.toml'), *, config=None, selected=None) -> list[Path]:
+    paths = sorted(root.rglob('*.ttf'))
+    if selected is not None:
+        paths = [target_path(root, config, t) for t in selected]
+        missing = [str(path) for path in paths
+                   if not path.is_file() or not path.with_suffix('.json').is_file()]
+        if missing:
+            raise ValueError('Missing family outputs (font or manifest):\n' + '\n'.join(missing))
     groups: dict[str, list[tuple[Path, dict]]] = {}
-    for path in sorted(root.rglob('*.ttf')):
+    for path in paths:
         manifest_path = path.with_suffix('.json')
         if not manifest_path.exists():
             continue
         manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        if selected is not None and (
+                Target(**manifest['target']) not in selected or
+                target_path(root, config, Target(**manifest['target'])) != path):
+            raise ValueError(f'Target mismatch: {path}')
         if not manifest['validation']['valid'] or sha256(path) != manifest['sha256']:
             raise ValueError(f'Unvalidated or modified output: {path}')
         identity = expected_identity(Target(**manifest['target']), manifest['config']['project'])

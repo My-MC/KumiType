@@ -71,6 +71,44 @@ def test_external_cwd_build_validate_package_routes_cache(project, tmp_path, mon
     assert list((project / 'configured-cache/outlines').glob('*.json'))
 
 
+@pytest.mark.parametrize('command', ['build', 'build-all'])
+def test_small_matrix_full_and_scoped_consumers(project, monkeypatch, capsys, command):
+    import zipfile
+
+    assert invoke(monkeypatch, project, command, '--jobs', '1') == 0
+    report = json.loads((project / 'build/build-report.json').read_text())
+    assert report['output_count'] == report['selection']['target_count'] == 1
+    capsys.readouterr()
+    assert invoke(monkeypatch, project, 'validate', '--all') == 0
+    assert len(json.loads(capsys.readouterr().out)) == 1
+    assert invoke(monkeypatch, project, 'audit') == 0
+    assert json.loads(capsys.readouterr().out)['complete']
+    assert invoke(monkeypatch, project, 'package', '--all') == 0
+    archive = next((project / 'dist').glob('*.zip'))
+    first = archive.read_bytes()
+    # Unrelated damaged outputs must not break any scoped consumer.
+    unrelated = project / 'build/unrelated.ttf'
+    unrelated.write_bytes(b'broken')
+    unrelated.with_suffix('.json').write_text('{broken')
+    assert invoke(monkeypatch, project, 'validate', '--family', 'mono/biz') == 0
+    assert invoke(monkeypatch, project, 'audit', '--family', 'mono/biz') == 0
+    assert invoke(monkeypatch, project, 'package', '--family', 'mono/biz') == 0
+    assert archive.read_bytes() == first
+    with zipfile.ZipFile(archive) as contents:
+        assert len([name for name in contents.namelist() if name.endswith('.ttf')]) == 1
+
+
+def test_selected_validation_rejects_wrong_target_manifest(project, monkeypatch, capsys):
+    assert invoke(monkeypatch, project, 'build', '--family', 'mono/biz', '--jobs', '1') == 0
+    path = next((project / 'build').rglob('*.ttf')).with_suffix('.json')
+    record = json.loads(path.read_text())
+    record['target']['base'] = 'code'
+    path.write_text(json.dumps(record))
+    capsys.readouterr()
+    assert invoke(monkeypatch, project, 'validate', '--family', 'mono/biz') == 1
+    assert 'Target mismatch' in str(json.loads(capsys.readouterr().out)[0]['errors'])
+
+
 def test_zip_reproducible_across_project_source_and_cache_locations(project, tmp_path, monkeypatch):
     import shutil
     import zipfile
@@ -174,7 +212,7 @@ def test_zip_reproducible_despite_mtime_permissions_and_runtime_fields(
     assert invoke(monkeypatch, project, 'package', '--all') == 0
     archive = next((project / 'dist').glob('*.zip'))
     first = archive.read_bytes()
-    manifest_path = next((project / 'build').rglob('*.json'))
+    manifest_path = next((project / 'build').rglob('*.ttf')).with_suffix('.json')
     manifest = json.loads(manifest_path.read_text())
     manifest.update(generated_at='different time', duration_seconds=999, process_peak_rss_kib=123)
     manifest_path.write_text(json.dumps(manifest))

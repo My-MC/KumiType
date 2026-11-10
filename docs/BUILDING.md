@@ -46,7 +46,7 @@ Python **3.14以降**と依存パッケージは、システムのPythonでは�
 
    ```sh
    uv run --locked kumitype build --base mono-nf --jp plex --weight 400 --style normal
-   uv run --locked kumitype build --base code-nf --jp noto --all-weights --all-styles
+   uv run --locked kumitype build --family code-nf/noto --jobs auto
    ```
 
 3. 全504本が必要な場合は、4ワーカーで一括生成します。
@@ -58,6 +58,74 @@ Python **3.14以降**と依存パッケージは、システムのPythonでは�
 生成対象と変換設定は`config/build.yaml`、ソースのURL・固定版・SHA-256は`config/sources.lock.toml`にあります。既定の生成先は`build/`です。
 並列数`auto`はCPUと使用可能メモリに基づいて制限されます。`build.worker_memory_mb`と`build.max_jobs`で上限を調整できます。
 
+## ファミリーを指定してビルドする
+
+`build`・`list`・`validate`・`audit`・`package`は同じ対象選択オプションを使います。
+省略した次元は設定済みの全値を選択し、指定した次元同士は積集合で絞り込みます。
+同じオプションの繰り返しとカンマ区切りは、どちらも複数値の指定です。
+
+| オプション | 値と例 |
+| --- | --- |
+| `--family` | `mono-nf/biz`、または出力名 `"KumiType BIZ Mono NF"`。大文字小文字・空白・ハイフンの差を許容します。 |
+| `--base` | `code,mono`、または `--base code --base mono`。 |
+| `--jp` | `config/fonts.yaml`のID（例：`biz,plex`）。 |
+| `--weight` | `400,700`など、`config/build.yaml`にあるウェイト。 |
+| `--style` | `normal,italic`など、設定済みのスタイル。 |
+
+未知値や積集合が0件となる指定は、選択可能な値を示して失敗します。
+`--family mono-nf/biz --base code`は0件です。
+選択オプションは設定自体を書き換えません。
+`build`は`--jobs`、メモリ上限、`build.fail_on_error`を使い、選択範囲を並列生成します。
+他ファミリーの既存出力は削除しません。
+`build-report.json`と`build-report.md`は今回の結果で置き換え、選択条件と対象数を記録します。
+
+1. `list`で1ファミリー・12本になることを確認します。
+
+   ```sh
+   uv run --locked kumitype list --family mono-nf/biz
+   uv run --locked kumitype list --family "KumiType BIZ Mono NF" --json
+   ```
+
+   JSONは`selectors`・`family_count`・`target_count`・`families`・`targets`を持つオブジェクトです。
+
+2. 同じファミリーを生成し、完全性監査・HarfBuzz必須検証・ZIP作成まで実行します。
+
+   ```sh
+   uv run --locked kumitype build --family mono-nf/biz --jobs auto
+   uv run --locked kumitype audit --family mono-nf/biz
+   uv run --locked kumitype validate --family mono-nf/biz --require-harfbuzz
+   uv run --locked kumitype package --family mono-nf/biz
+   ```
+
+3. 必要に応じて複数ファミリー、日本語書体だけ、ウェイトを指定します。
+   次の各行は独立した選択例です。
+
+   ```sh
+   uv run --locked kumitype build --family mono-nf/biz,code/plex --jobs auto
+   uv run --locked kumitype build --family mono-nf/biz --family mono/plex --jobs auto
+   uv run --locked kumitype build --jp biz --jobs auto
+   uv run --locked kumitype list --base code,mono --jp plex,noto --weight 400,700 --json
+   uv run --locked kumitype build --base code,mono --jp plex,noto --weight 400,700 --jobs auto
+   uv run --locked kumitype validate --base code,mono --jp plex,noto --weight 400,700 --require-harfbuzz
+   uv run --locked kumitype audit --base code,mono --jp plex,noto --weight 400,700
+   ```
+
+`package`はファミリー単位です。
+そのファミリーの設定済み全ウェイト・全スタイル（既定12本）のTTFとマニフェストが必要で、不足時は不足一覧を表示します。
+`--weight`・`--style`を使う部分パッケージはエラーになります。
+設定自体がウェイト・スタイルを絞っている場合は、その設定の全数が必要です。
+`validate`はセレクタなし、または`--all`で既存全出力を検証します。
+`--all`とセレクタを併用した場合はセレクタで絞り込みます。
+`audit`はセレクタなしの場合だけ設定全体の完全性を判定します。
+`build-all`はセレクタなしの`build`と同等です。
+旧`build --base X --jp Y`は400 Normalの1本でしたが、現在は既定12本を生成します。
+1本だけなら`--weight 400 --style normal`を明示してください。
+旧`--all-weights`・`--all-styles`は非推奨で、警告を出して無視します。
+
+手動GitHub Actionsの`Full font build`でも、`families`・`bases`・`japanese_fonts`に同じカンマ区切り値を指定できます。
+全欄が空なら全数、指定時はその積集合だけを生成・監査・検証・パッケージ化します。
+部分実行のFontBakery検査も生成済みファミリーだけを対象にし、全体監査用`check-goal.py`の対象は変更しません。
+
 ## 検証とパッケージ化
 
 全504本の生成後に、完全性監査・HarfBuzz必須検証・ファミリー別ZIP作成を順に実行します。
@@ -68,7 +136,9 @@ uv run --locked kumitype validate --all --require-harfbuzz
 uv run --locked kumitype package --all
 ```
 
-ZIPは`dist/`に保存します。少数ビルドでは全数を要求する`audit`は失敗するため、生成範囲に応じて検証を使い分けてください。表示確認・ZIP監査・ゴール判定の詳細は[検証ガイド](VALIDATION.md)を参照してください。
+ZIPは`dist/`に保存します。
+少数ビルドでは`audit`にも同じセレクタを渡してください。
+表示確認・ZIP監査・ゴール判定の詳細は[検証ガイド](VALIDATION.md)を参照してください。
 
 別の生成先を使う場合は、`build-all`の`--output-dir`と、検証・パッケージ化の`--build-dir`に同じパスを指定します。`package`の`--output-dir`はZIPの保存先です。
 
@@ -187,3 +257,13 @@ make package
 ```
 
 `BUILD_DIR`と`DIST_DIR`で保存先を指定できます。`verify`は完全性監査に成功した後、HarfBuzz必須検証を実行します。
+
+`BASE`・`JP`・`FAMILY`・`WEIGHT`・`STYLE`は`fonts`・`audit`・`validate`・`package`へ同じセレクタを渡します。
+`package`では`WEIGHT`・`STYLE`は使えません。
+
+```sh
+make fonts BASE=mono-nf JP=biz,plex JOBS=auto
+make fonts FAMILY="KumiType BIZ Mono NF"
+make verify FAMILY=mono-nf/biz
+make package FAMILY=mono-nf/biz
+```

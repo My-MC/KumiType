@@ -39,7 +39,7 @@ def test_fail_fast_stops_scheduling_and_reports_unstarted(monkeypatch):
     monkeypatch.setattr(builder, 'write_build_report', capture)
     config = {'variants': ['mono'], 'japanese_fonts': ['biz'], 'weights': [200, 300, 400],
               'styles': ['normal'], 'build': {'fail_on_error': True}}
-    with pytest.raises(ValueError, match='build errors'):
+    with pytest.raises(ValueError, match='build errors.*source missing'):
         build_all(config, jobs=1)
     assert len(calls) == 1
     assert len(captured['errors']) == 3

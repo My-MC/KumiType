@@ -14,6 +14,7 @@ from .config import Target, targets
 from .downloader import sha256
 from .glyph_selector import cell_count, private_use
 from .metadata import metadata_errors
+from .selection import target_path
 from .shaping import compare_shaping
 
 
@@ -117,17 +118,27 @@ def validate(path: str | Path, base_path: str | Path | None = None, *,
     return {'valid': not errors, 'errors': errors}
 
 
-def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dict]:
+def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape',
+                 config=None, selected=None) -> list[dict]:
     """Revalidate tracked outputs, including manifest hashes and source invariants."""
     results = []
     names = {}
-    for path in sorted(root.rglob('*.ttf')):
+    paths = (sorted(root.rglob('*.ttf')) if selected is None else
+             [target_path(root, config, t) for t in selected])
+    for path in paths:
         try:
+            if not path.is_file():
+                results.append({'path': str(path), 'valid': False, 'errors': ['Missing font']})
+                continue
             manifest_path = path.with_suffix('.json')
             if not manifest_path.exists():
                 results.append({'path': str(path), 'valid': False, 'errors': ['Missing manifest']})
                 continue
             manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+            if selected is not None and (
+                    Target(**manifest['target']) not in selected or
+                    target_path(root, config, Target(**manifest['target'])) != path):
+                raise ValueError(f'Target mismatch: {path}')
             base = manifest['sources'][0]['path']
             result = validate(path, base,
                               project_version=manifest.get('config', {}).get('project', {}).get('version'))
@@ -172,20 +183,25 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
     return results
 
 
-def audit_matrix(config: dict, root=Path('build')) -> dict:
+def audit_matrix(config: dict, root=Path('build'), *, selected=None) -> dict:
     """Check the complete requested matrix, rather than merely counting files."""
-    expected = set(targets(config))
+    expected = set(targets(config) if selected is None else selected)
+    expected_paths = {target_path(root, config, t).with_suffix('.json')
+                      for t in expected} if selected is not None else set()
     observed = {}
     errors = []
     for path in sorted(root.rglob('*.json')):
         font = path.with_suffix('.ttf')
         if not font.exists():
             continue
-        record = json.loads(path.read_text(encoding='utf-8'))
         try:
+            record = json.loads(path.read_text(encoding='utf-8'))
             target = Target(**record['target'])
-        except (KeyError, TypeError) as exc:
-            errors.append(f'Invalid target manifest: {path}: {exc}')
+        except (KeyError, TypeError, ValueError) as exc:
+            if selected is None or path in expected_paths:
+                errors.append(f'Invalid target manifest: {path}: {exc}')
+            continue
+        if selected is not None and target not in expected:
             continue
         if target in observed:
             errors.append(f'Duplicate target: {target}')

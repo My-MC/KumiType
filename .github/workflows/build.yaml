@@ -1,6 +1,22 @@
 name: Full font build
 on:
   workflow_dispatch:
+    inputs:
+      families:
+        description: 'Families (comma-separated base/jp or output names; empty selects all)'
+        required: false
+        default: ''
+        type: string
+      bases:
+        description: 'Base variants (comma-separated; empty selects all)'
+        required: false
+        default: ''
+        type: string
+      japanese_fonts:
+        description: 'Japanese font IDs (comma-separated; empty selects all)'
+        required: false
+        default: ''
+        type: string
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -19,12 +35,28 @@ jobs:
           key: sources-${{ hashFiles('config/sources.lock.toml') }}
       - run: sudo apt-get update && sudo apt-get install -y fontconfig libharfbuzz-bin
       - run: uv run --locked kumitype fetch
-      - run: uv run --locked kumitype build-all --jobs 2
-      - run: uv run --locked kumitype audit
-      - run: uv run --locked kumitype validate --all --require-harfbuzz
+      - name: Build, audit, validate and package selected families
+        env:
+          FAMILIES: ${{ inputs.families }}
+          BASES: ${{ inputs.bases }}
+          JAPANESE_FONTS: ${{ inputs.japanese_fonts }}
+        shell: bash
+        run: |
+          selectors=()
+          [[ -z "$FAMILIES" ]] || selectors+=(--family "$FAMILIES")
+          [[ -z "$BASES" ]] || selectors+=(--base "$BASES")
+          [[ -z "$JAPANESE_FONTS" ]] || selectors+=(--jp "$JAPANESE_FONTS")
+          uv run --locked kumitype list "${selectors[@]}"
+          uv run --locked kumitype build "${selectors[@]}" --jobs 2
+          uv run --locked kumitype audit "${selectors[@]}"
+          uv run --locked kumitype validate "${selectors[@]}" --require-harfbuzz
+          uv run --locked kumitype package "${selectors[@]}"
       # Independent 28-font acceptance subset; universal includes OpenType checks.
-      - run: uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality > build-quality-goal.json
-      - run: uv run --locked kumitype package --all
+      - if: inputs.families == '' && inputs.bases == '' && inputs.japanese_fonts == ''
+        run: uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality > build-quality-goal.json
+      # Partial runs inspect only built families; do not build unrelated G7 inputs.
+      - if: inputs.families != '' || inputs.bases != '' || inputs.japanese_fonts != ''
+        run: uv run --locked python scripts/check-fontbakery.py --build-dir build --output-dir build-quality/fontbakery
       - run: uv run --locked python scripts/check-packages.py
       - run: uv run --locked python scripts/generate-preview.py
       - uses: actions/upload-artifact@v4

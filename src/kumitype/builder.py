@@ -161,7 +161,8 @@ def build_one(config: dict, target, source=None, output=None) -> Path:
     return destination
 
 
-def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
+def build_all(config: dict, jobs=None, source=None, output=None, *, selected=None,
+              selection=None) -> list[str]:
     """Execute the configured matrix, never silently omitting failed targets."""
     source = resolve_path(config, source or config.get('paths', {}).get('source', 'source'))
     output = resolve_path(config, output or config.get('paths', {}).get('build', 'build'))
@@ -169,7 +170,7 @@ def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
     jobs = worker_count(jobs if jobs is not None else settings.get('jobs', 'auto'),
                         worker_memory_mb=settings.get('worker_memory_mb', 2048),
                         max_jobs=settings.get('max_jobs'))
-    matrix = targets(config)
+    matrix = targets(config) if selected is None else selected
     results = []
     errors = []
     remaining = iter(matrix)
@@ -201,7 +202,8 @@ def build_all(config: dict, jobs=None, source=None, output=None) -> list[str]:
             for target in remaining:
                 errors.append({'target': asdict(target), 'error': 'Not started after earlier failure'})
 
-    write_build_report(results, errors, root=output)
+    write_build_report(results, errors, root=output, selection=selection)
     if errors:
-        raise ValueError(f'{len(errors)} build errors; see {output / "build-report.json"}')
+        raise ValueError(f'{len(errors)} build errors: {errors[0]["error"]}; '
+                         f'see {output / "build-report.json"}')
     return results
