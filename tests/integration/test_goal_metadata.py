@@ -38,6 +38,25 @@ def test_output_metadata_contract(tmp_path):
     assert validate(path)['valid']
 
 
+@pytest.mark.parametrize('weight,style', [(400, 'normal'), (700, 'italic'), (350, 'normal')])
+def test_quality_metadata(tmp_path, weight, style):
+    from fontTools.ttLib import TTFont
+    font = make_font({65: 'a'})
+    font['head'].flags &= ~8
+    apply_metadata(font, make_font({0x3042: 'kana'}), Target('mono', 'biz', weight, style),
+                   {'name': 'KumiType', 'version': '0.1.0'})
+    path = tmp_path / 'quality.ttf'
+    font.save(path)
+    with TTFont(path) as loaded:
+        assert loaded['head'].flags & 8
+        assert not any(n.platformID == 1 for n in loaded['name'].names)
+        assert loaded['OS/2'].panose.bFamilyType == 2
+        assert loaded['OS/2'].panose.bProportion == 9
+        stat = loaded['STAT'].table
+        assert [a.AxisTag for a in stat.DesignAxisRecord.Axis] == ['wght', 'ital']
+        assert [v.Value for v in stat.AxisValueArray.AxisValue] == [weight, int(style == 'italic')]
+
+
 def test_validate_all_uses_manifest_project_version(tmp_path):
     import hashlib
     import json

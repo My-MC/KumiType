@@ -64,6 +64,77 @@ python scripts/generate-preview.py --build-dir build-latest --base mono-nf --wei
 半角カナはソース由来の取り込み一覧と独立してU+FF61–U+FF9Fの全63文字を
 検査し、欠落または1セル以外のadvanceをエラーにします。
 
+## FontBakeryによる品質検査（G7）
+
+```sh
+uv sync --locked --extra dev
+# 28対象を構築・検証（既存の完全な出力がある場合は --reuse）
+uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality
+# 指定ディレクトリの全TTFを検査する場合（サブセットへの自動絞り込みなし）
+uv run --locked python scripts/check-fontbakery.py --build-dir build-quality
+```
+
+FontBakery **1.1.0** をロックし、`check-universal --skip-network` を使います。
+universalには `opentype` プロファイルが含まれます。OTS、FreeType、ttx往復なども
+省略せず、チェックIDによる実行除外は行いません。明示的なSKIP指定はネットワーク依存の
+チェックに限り、最新リリースの照会に依存しない品質判定にしています。
+可変フォント専用など条件が合わないチェックもFontBakery自身がSKIPとします。
+書体・系列ごとのディレクトリ単位で実行し、別ファミリー混在による誤判定を防ぎます。
+独立した検査を最大2プロセスで並行実行し、結果の並び順は固定します。
+`fontbakery/universal-NNN.json` と `.log` に生の結果、`summary.json` に分類結果、
+入力TTFのSHA-256、ツール版、許可リストのSHA-256を保存します。
+実行失敗・空/未完了/件数不整合のレポート・ERROR/FATALは成功扱いしません。
+同じ出力先を再利用しても生JSONは毎回作り直し、検査中のTTF変更も拒否します。
+G7はG2/G4と同じ28対象の存在・設定・マニフェストハッシュ確認を前提にします。
+手動フルビルドCIも独立した28対象を `build-quality/` に生成してG7を実行し、
+失敗時も生レポートと結果JSONをartifactとして保存します。
+
+### FAILの分類
+
+- **修正**: `opentype/monospace` の `mono-bad-panose` はLatin Text/Monospaced
+  （PANOSE 2/9）を設定。日本語の2セル幅は変更しません。
+- **修正**: `integer_ppem_if_hinted` の `bad-flags` は、継承したCascadiaヒント用に
+  head.flags bit3を設定します。
+- **修正**: `opentype/STAT/ital_axis` の `no-stat` は、静的フォントにも実際の
+  wght/ital値を持つSTATを生成します。Regular/Romanだけをelidableにします。
+- **意図的な継承**: `arabic_high_hamza` / `mark-in-gdef`、`case_mapping` /
+  `missing-case-counterparts`、`nested_components` / `found-nested-components` は
+  元のCascadiaMono-Regular.ttfでも同じFAILを実測しています。既存文字のシェーピング・
+  グリフID・輪郭・収録範囲を維持する方針のため、上流の構造を変更しません。
+  これは当該指摘の解消を意味せず、明示した既知制限として管理します。
+
+`config/fontbakery-allowlist.json` は**チェックIDとメッセージコードの完全一致**に
+日本語の理由を必須とします。チェック全体の無条件除外・ワイルドカードは禁止です。
+同じチェックで新しいFAILコードが出ればG7は失敗します。WARNは除外せず記録し、
+ERROR/FATALは許可リストに関係なく失敗させます。
+
+### WARN一覧
+
+28対象の検査で得たチェックID／メッセージコードは以下のとおりです。
+件数・該当TTF・全文は各回のJSONが根拠です（同じチェックが複数WARNを返す場合があります）。
+WARNはG7の合否に直接影響しませんが、修正済みと見なさず残課題として記録します。
+
+| チェックID | メッセージコード | 内容・扱い |
+|---|---|---|
+| `opentype/gdef_mark_chars` | `mark-chars` | マーク文字のGDEF分類。元のレイアウトを保持 |
+| `opentype/gdef_non_mark_chars` | `non-mark-chars` | 非マーク文字のGDEF分類。元のレイアウトを保持 |
+| `opentype/gdef_spacing_marks` | `spacing-mark-glyphs` | 有送りマークの分類。元のレイアウトを保持 |
+| `opentype/monospace` | `bad-numberOfHMetrics` | hMetricsを3個にする推奨。日英1:2幅と元GIDを保持 |
+| `opentype/monospace` | `mono-outliers` | 日本語2セル等、ASCIIと異なる送り幅 |
+| `opentype/xavgcharwidth` | `xAvgCharWidth-wrong` | 文字集合追加後の平均幅。上流の値を継承 |
+| `opentype/STAT/ital_axis` | `wrong-ital-axis-linkedvalue` | Roman/Italic間のSTAT LinkedValueは未設定 |
+| `alt_caron` | `decomposed-outline` | caronの構成。元の輪郭を保持 |
+| `arabic_high_hamza` | `glyph-area` | 元Cascadiaのhamzaの面積 |
+| `cjk_chws_feature` | `missing-chws-feature`, `missing-vchw-feature` | 和文の詰め・縦組み機能は移植しない |
+| `contour_count` | `contour-count` | 文字ごとの推奨輪郭数との相違 |
+| `file_size` | `large-font` | 日本語・NFを収録するため1 MiB推奨値超過 |
+| `math_signs_width` | `width-outliers` | 元の数学記号にある幅の相違 |
+| `overlapping_path_segments` | `overlapping-path-segments` | 輪郭の重複部分。元の輪郭を保持 |
+| `soft_hyphen` | `softhyphen` | ソフトハイフンの有無・扱い |
+| `stylisticset_description` | `missing-description` | 元Cascadiaの一部ss機能の説明名がない |
+| `unreachable_glyphs` | `unreachable-glyphs` | 元GIDを保持するため未到達グリフも残す |
+| `valid_glyphnames` | `legacy-long-names` | 旧PostScriptの31文字制限を超す元グリフ名 |
+
 ## 開発時の静的検査
 
 ```sh
@@ -91,7 +162,7 @@ uv run --locked python scripts/check-goal.py > build-goals.json
 ```
 
 `--only` を省略するとG1〜G7を実行します。JSONの `goals` にstatusとevidenceを返し、
-FAILが1件でもあれば終了コード1です。未実装のG7のみPENDING（終了コードに影響なし）。
+FAILが1件でもあれば終了コード1です。G7も実行し、PENDINGはありません。
 ログは標準エラー、JSONは標準出力に分離します。
 
 検証サブセットはcode-nfとmono、日本語7書体それぞれの400 normal / 700 italicの
@@ -109,7 +180,7 @@ FAILが1件でもあれば終了コード1です。未実装のG7のみPENDING�
 | G4 | マニフェストの取り込み一覧に対して、実輪郭のxMax−xMinとadvanceを全件比較 |
 | G5 | 同じ出力パスで2回クリーンビルド・ZIP生成したTTF/ZIPの相対パス一覧とSHA-256一致 |
 | G6 | 外部cwdからCLIのcache-dir受付、設定lockのカナリア、list、カスタムキャッシュ実ビルドを検査 |
-| G7 | fontbakery（後続実装までPENDING） |
+| G7 | FontBakery universal（OpenTypeを含む）、許可リスト外FAIL / ERROR / FATALが0 |
 
 G4〜G6で失敗してもG1〜G3の個別結果を保持します。G5では生成先をクリーンにして
 28 TTF・14 ZIPを2回作成します。インスタンス・輪郭の中間キャッシュは保持します。

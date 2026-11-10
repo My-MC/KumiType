@@ -22,6 +22,8 @@ jobs:
       - run: uv run --locked kumitype build-all --jobs 2
       - run: uv run --locked kumitype audit
       - run: uv run --locked kumitype validate --all --require-harfbuzz
+      # Independent 28-font acceptance subset; universal includes OpenType checks.
+      - run: uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality > build-quality-goal.json
       - run: uv run --locked kumitype package --all
       - run: uv run --locked python scripts/check-packages.py
       - run: uv run --locked python scripts/generate-preview.py
@@ -34,4 +36,6 @@ jobs:
             build/validation-report.*
             build/shaping-report.json
             build/preview.html
+            build-quality-goal.json
+            build-quality/fontbakery/
             dist/*.zip

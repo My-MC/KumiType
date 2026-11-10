@@ -2,6 +2,7 @@
 import re
 
 from fontTools.misc.fixedTools import floatToFixedToFloat
+from fontTools.otlLib.builder import buildStatTable
 
 WEIGHT_NAMES = {200: 'ExtraLight', 300: 'Light', 350: 'SemiLight',
                 400: 'Regular', 600: 'SemiBold', 700: 'Bold'}
@@ -81,6 +82,16 @@ def apply_metadata(font, donor, target, project: dict, additional_donors=()) -> 
     selection |= int(italic) | (int(bold) << 5) | (int(not bold and not italic) << 6)
     font['OS/2'].fsSelection = selection
     font['head'].macStyle = (font['head'].macStyle & ~3) | int(bold) | (int(italic) << 1)
+    font['head'].flags |= 1 << 3  # Preserve Cascadia hinting with integer PPEM.
+    font['OS/2'].panose.bFamilyType = 2  # Latin text; CJK keeps two-cell metrics.
+    font['OS/2'].panose.bProportion = 9
+    buildStatTable(font, [
+        {'tag': 'wght', 'name': 'Weight', 'values': [
+            {'value': target.weight, 'name': weight_name, 'flags': 2 if target.weight == 400 else 0}]},
+        {'tag': 'ital', 'name': 'Italic', 'values': [
+            {'value': int(italic), 'name': 'Italic' if italic else 'Roman',
+             'flags': 0 if italic else 2}]},
+    ], macNames=False)
     return {'family': family, 'style': style, 'postscript_name': ps}
 
 
