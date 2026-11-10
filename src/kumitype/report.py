@@ -81,14 +81,15 @@ def doctor(source=Path('source'), output=Path('build'), lock=Path('config/source
     }
 
 
-def write_build_report(outputs: list[str], errors: list[dict], root=Path('build')) -> None:
+def write_build_report(outputs: list[str], errors: list[dict], root=Path('build'),
+                       selection=None) -> None:
     """Emit machine-readable and reviewable summaries of completed work."""
     records = [json.loads(Path(path).with_suffix('.json').read_text(encoding='utf-8'))
                for path in outputs]
     report: dict[str, Any] = {'generated_at': datetime.now(timezone.utc).isoformat(),
               'output_count': len(outputs), 'outputs': outputs, 'errors': errors,
               'warnings': [warning for record in records for warning in record['warnings']],
-              'records': records}
+              'records': records, 'selection': selection}
     root.mkdir(parents=True, exist_ok=True)
 
     write_text(root / 'build-report.json', json.dumps(report, indent=2))
@@ -100,7 +101,8 @@ def write_build_report(outputs: list[str], errors: list[dict], root=Path('build'
                      f"{len(record['merge']['added_codepoints'])} | "
                      f"{len(record['merge']['overflow_codepoints'])} | "
                      f"{record['validation']['valid']} |")
-    lines.extend(['', '## Warnings', ''] + report['warnings'])
+    lines.extend(['', '## Selection', '', json.dumps(selection, ensure_ascii=False),
+                  '', '## Warnings', ''] + report['warnings'])
     lines.extend(['', '## Errors', ''] + [str(error) for error in errors])
     write_text(root / 'build-report.md', '\n'.join(lines) + '\n')
 

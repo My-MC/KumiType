@@ -95,7 +95,7 @@ def test_container_config_environment_uses_mounted_project(tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr('sys.argv', ['kumitype', 'list', '--json'])
     assert main() == 0
-    assert __import__('json').loads(capsys.readouterr().out) == [
+    assert __import__('json').loads(capsys.readouterr().out)['targets'] == [
         {'base': 'mono', 'japanese': 'biz', 'weight': 400, 'style': 'normal'}]
     # An explicit --config remains authoritative over the container default.
     monkeypatch.setenv('KUMITYPE_CONFIG', str(tmp_path / 'missing.yaml'))

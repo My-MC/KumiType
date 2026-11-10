@@ -12,6 +12,11 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 
 ### 追加
 
+- `build`・`list`・`validate`・`audit`・`package`で共通の`--base`・`--jp`・`--weight`・`--style`・`--family`による対象選択を追加しました。
+  繰り返し・カンマ区切り、ファミリーの`base/jp`形式と出力名、次元同士の積集合に対応します。
+- 選択対象の並列ビルド、ファミリー一覧と本数のJSON表示、対象限定の検証・完全性監査、全ウェイト・全スタイルが揃ったファミリーだけのZIP作成を追加しました。
+- Makefileの`BASE`・`JP`・`FAMILY`・`WEIGHT`・`STYLE`と、手動ビルドCIの`families`・`bases`・`japanese_fonts`入力を追加しました。
+
 - Cascadiaの通常・PL・NFを含む6ベース系列と日本語7書体について、固定ソース取得・SHA-256検証・オフライン登録・明示更新を追加しました。
 - 元グリフID、既存輪郭、`GSUB` / `GPOS` を保持する静的TTF合成を追加しました。日本語輪郭のUPM正規化・中央配置・送り幅設定・ベースライン調整、半角カナの派生と倍率調整、文字ごとの収録元指定、分割ソースの補完に対応します。
 - 独自ファミリー名、著作権・ライセンスメタデータの統合、追加ライセンスのハッシュ確認と同梱、検証マニフェスト、ファミリー別ZIPを追加しました。
@@ -26,6 +31,16 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 - 追加結合文字の `merge.zero_width_mark_codepoints` と `GDEF` の `mark(3)` 登録を追加しました。validatorは追加分類だけを許容し、既存分類と他サブテーブルの変更を検出します。`G4` も送り幅 `0` と直前の基準セル領域を検査します（[PR #6](https://github.com/My-MC/KumiType/pull/6)）。
 
 ### 変更
+
+- `build`の未指定次元を設定済みの全値に変更しました。
+  **旧`build --base X --jp Y`は400 Normalの1本でしたが、現在は既定12本を並列生成します。**
+  従来の1本だけなら`--weight 400 --style normal`を明示してください。
+- `--all-weights`・`--all-styles`は非推奨とし、警告を出して無視します。
+  `build-all`はセレクタなしの`build`と同等として残しています。
+- ビルドレポートは今回の選択対象の結果と選択条件・対象数を記録し、他ファミリーの既存出力は保持します。
+  `list --json`は対象配列だけでなく、`selectors`・`families`・`family_count`・`target_count`・`targets`を持つオブジェクトを返します。
+- `validate`と`package`の`--all`必須を廃止しました。
+  セレクタなしの全出力処理と既存の`--all`は引き続き使用できます。
 
 - 対応環境をPython **3.14以降**に統一しました（[PR #1](https://github.com/My-MC/KumiType/pull/1)）。
 - CIのRuff対象を `src tests scripts` に統一しました（[PR #1](https://github.com/My-MC/KumiType/pull/1)）。
