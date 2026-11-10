@@ -54,6 +54,65 @@ ZIPは`dist/`に保存します。HarfBuzz必須の検証や表示確認は[検�
 別の生成先を使う場合は、build-allの`--output-dir`と、検証・パッケージ化の
 `--build-dir`に同じパスを指定します。
 
+## 設定・パス・キャッシュ
+
+全コマンドが `--config` の `sources.lock` を使用します。`--lock` を明示した
+場合だけ上書きし、`fetch`・`import-source`・`update-source`・`doctor`・
+`build` / `build-all`・`package` で同じロックを参照します。
+
+設定で入出力先とキャッシュを指定できます（以下は既定値）。
+
+```yaml
+sources:
+  lock: config/sources.lock.toml
+  cascadia:
+    version: "2407.24"
+paths:
+  source: source
+  cache: cache
+  build: build
+  dist: dist
+```
+
+相対パスは設定ファイルのディレクトリが基準です。ただし `config/` 内に設定を
+置く通常構成では、その親をプロジェクトルートとします。CLIで明示した相対パス
+（`--lock`、`--source-dir`、`--cache-dir`、`--output-dir`、`--build-dir`、
+`import-source --file`）や `subset_files` / `subset_licenses` も同じ基準で解決します。
+絶対パスはそのまま使います。実行時のcwdには依存しません。
+
+全コマンドで `--cache-dir` を受け付けます。取得物はその直下、静的インスタンスは
+`instances/`、変換済み輪郭は `outlines/` に保存します。検査系コマンドはこの指定で
+キャッシュを書き込みません。
+
+リポジトリ外から実行する例（先に `uv sync` を実行済みの場合）:
+
+```sh
+/path/to/KumiType/.venv/bin/kumitype --config /path/to/KumiType/config/build.yaml build --base mono --jp biz --cache-dir cache-custom
+/path/to/KumiType/.venv/bin/kumitype --config /path/to/KumiType/config/build.yaml validate --all
+/path/to/KumiType/.venv/bin/kumitype --config /path/to/KumiType/config/build.yaml package --all
+```
+
+`doctor` の `sources_ready` は選択した対象に必要なCascadia・日本語ドナー・ライセンス
+のみで判定します。未選択のソースは `sources` に情報として残し、`required: false` と
+表示します。必須フォントの欠落・改変、テキストライセンスのハッシュ不一致は失敗扱いです。
+
+## 再現可能なZIP
+
+同じ入力・設定・依存・実装なら、プロジェクトの配置先やソース・キャッシュの保存先を
+変えてもTTFとZIPのSHA-256を再現できます。
+ZIPはエントリ名順、Unix通常ファイル `0644`、固定の圧縮レベルで作成し、入力の
+mtime・権限を取り込みません。日時は既定で1980-01-01 00:00:00 UTCです。
+`SOURCE_DATE_EPOCH` を整数秒で指定するとUTCで反映します。ZIPの表現範囲
+（1980〜2107年）外は端に丸め、秒は2秒単位で切り捨てます。不正な値はエラーです。
+
+ZIP内のマニフェストと `sources/*.json` では `generated_at`、`duration_seconds`、
+`process_peak_rss_kib` に加え、ローカル保存先（`path`、`paths`、`sources.lock`、
+`subset_files`、`subset_licenses`）と内部キー `_project_root` を除外します。
+`config_sha256` はこの配布用設定から再計算し、キー順を固定します。入力の追跡には
+ソース・追加ライセンスのSHA-256、URL、固定版を残します。ビルド出力側のJSONは
+元のパス・設定ハッシュ・実測値を保持します。実装・依存の識別子も保持するため、
+異なる依存版をまたぐZIP一致を保証するものではありません。
+
 ## オフライン利用
 
 接続可能な環境で、Python・依存・フォントソースを準備してください。
@@ -71,6 +130,9 @@ uv run --locked --offline kumitype build-all
 ## Docker / Compose / Podmanで手動実行
 
 Dockerは任意のローカル実行方法です。CIの動作確認対象にはしていません。
+コンテナの `KUMITYPE_CONFIG=/work/config/build.yaml` により、イメージ内の
+パッケージではなくマウントしたプロジェクトの設定を参照します。
+明示的な `--config` はこの環境変数より優先されます。
 
 ```sh
 docker build -t kumitype-builder:local .

@@ -38,19 +38,41 @@ def install_sources(lock: Path, source: Path, cache: Path) -> list[dict]:
     return results
 
 
-def locked_manifests(source: Path, lock: Path) -> list[dict]:
+def locked_manifests(source: Path, lock: Path, *, identifiers=None) -> list[dict]:
     """Ignore stale installations and verify provenance against the active lock."""
     records = load_lock(lock)
     manifests = []
     for record in records:
+        if identifiers is not None and not any(
+                record['id'] == identifier or record['id'].startswith(identifier + '-')
+                for identifier in identifiers):
+            continue
         path = source / record['id'] / record['version'] / 'source-manifest.json'
         if not path.exists():
             continue
         data = json.loads(path.read_text(encoding='utf-8'))
         if any(data.get(key) != record.get(key) for key in ('id', 'version', 'sha256', 'url')):
             raise ValueError(f'Source manifest differs from lock: {path}')
+        for info in data.get('fonts', []):
+            info['path'] = str(manifest_font_path(source, info['path']))
         manifests.append(data)
     return manifests
+
+
+def manifest_font_path(source: Path, path: str) -> Path:
+    """Resolve legacy project-relative manifest paths, never against cwd."""
+    value = Path(path)
+    if value.is_absolute():
+        return value
+    source = source.resolve()
+    # Legacy paths include the entire configured source prefix (data/source,
+    # not necessarily just source). Find the ancestor that maps that prefix
+    # back onto the active installation without consulting the caller's cwd.
+    for parent in source.parents:
+        candidate = parent / value
+        if candidate.is_relative_to(source):
+            return candidate
+    return source.parent / value
 
 
 def update_lock(lock: Path, identifier: str, version: str, url: str, digest: str,
@@ -116,7 +138,7 @@ def import_source(lock: Path, identifier: str, artifact: Path,
     return result
 
 
-def source_status(lock: Path, source: Path) -> list[dict]:
+def source_status(lock: Path, source: Path, *, required_paths=None) -> list[dict]:
     """Describe missing pinned inputs without fetching or stopping at the first one."""
     results = []
     for record in load_lock(lock):
@@ -130,8 +152,15 @@ def source_status(lock: Path, source: Path) -> list[dict]:
                 data = json.loads(manifest_path.read_text(encoding='utf-8'))
                 if any(data.get(key) != record.get(key) for key in ('id', 'version', 'url', 'sha256')):
                     status['errors'].append('Manifest provenance differs from lock')
+                if record['format'] == 'text':
+                    files = [p for p in manifest_path.parent.rglob('*')
+                             if p.is_file() and p.name != 'source-manifest.json']
+                    if not files or not any(sha256(p) == record['sha256'] for p in files):
+                        status['errors'].append('Missing text source or license checksum mismatch')
                 for info in data.get('fonts', []):
-                    path = Path(info['path'])
+                    path = manifest_font_path(source, info['path'])
+                    if required_paths is not None and path not in required_paths:
+                        continue
                     if not path.exists():
                         status['errors'].append(f'Missing input file: {path}')
                     elif sha256(path) != info['sha256']:

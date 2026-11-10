@@ -51,6 +51,8 @@ python scripts/check-shaping.py --build-dir build-latest --harfbuzz /path/to/hb-
 
 ZIP生成後は `python scripts/check-packages.py --build-dir build-latest --dist-dir dist-latest`
 でCRC、同梱文書、TTFのSHA-256、ビルド出力との一対一対応を確認できます。
+マニフェストは配布用の正規化（実行時刻・所要時間・ピークRSS除外）後に比較します。
+除外対象以外の設定・ソース・チェックサムの差異は引き続きエラーです。
 フルビルドCIでもこの検査を実行します。
 
 ブラウザで7系列のRegularだけ比較する例:
@@ -92,7 +94,9 @@ FAILが1件でもあれば終了コード1です。未実装のG7のみPENDING�
 | G6 | 外部cwdからCLIのcache-dir受付、設定lockのカナリア、list、カスタムキャッシュ実ビルドを検査 |
 | G7 | fontbakery（後続実装までPENDING） |
 
-G4〜G6で失敗してもG1〜G3の個別結果を保持します。G5の一時出力は作業用一時領域に
+G4〜G6で失敗してもG1〜G3の個別結果を保持します。G5では生成先をクリーンにして
+28 TTF・14 ZIPを2回作成します。インスタンス・輪郭の中間キャッシュは保持します。
+G5の一時出力は作業用一時領域に
 置き、source/は削除しません。G6は独立した一時設定を使い、存在しないカナリアlockが
 実際に参照されるかを確認するため、既存ソースの再取得やlockの書き換えは行いません。
 
