@@ -121,6 +121,32 @@ def test_g4_detects_import_omitted_from_manifest(tmp_path):
     assert result['evidence'][0]['overflow_count'] == 1
 
 
+def test_g4_zero_width_mark_uses_preceding_reference_cell(tmp_path):
+    module = runner()
+    from fontTools.pens.ttGlyphPen import TTGlyphPen
+    font = module.synthetic_font('0.1.0')
+    name = 'kumitype.u00030F'
+    pen = TTGlyphPen(None)
+    pen.moveTo((-490, 0))
+    pen.lineTo((-10, 0))
+    pen.lineTo((-10, 700))
+    pen.closePath()
+    font['glyf'][name] = pen.glyph()
+    font['hmtx'][name] = (0, -490)
+    font.setGlyphOrder(list(dict.fromkeys([*font.getGlyphOrder(), name])))
+    for table in font['cmap'].tables:
+        if table.isUnicode():
+            table.cmap[0x030F] = name
+    path = tmp_path / 'mark.ttf'
+    font.save(path)
+    path.with_suffix('.json').write_text(json.dumps({'merge': {
+        'added_codepoints': [0x030F], 'zero_width_mark_codepoints': [0x030F], 'cell_width': 500}}))
+    assert module.check_g4([path])['status'] == 'PASS'
+    font['glyf'][name].coordinates.translate((500, 0))
+    font.save(path)
+    assert module.check_g4([path])['status'] == 'FAIL'
+
+
 def test_g6_does_not_pass_when_cache_options_missing(monkeypatch):
     module = runner()
     monkeypatch.setattr(module, 'command', lambda args, cwd: {

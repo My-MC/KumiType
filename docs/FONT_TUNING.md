@@ -2,7 +2,7 @@
 
 config/build.yamlのrenderingまたはfont_overridesの各日本語IDへ
 jp_scaleとbaseline_offsetを設定します。baseline_offsetは出力UPMの単位です。
-全角は既存Cascadiaスペースの2倍、半角カナは1倍のadvanceです。
+全角は既存Cascadiaスペースの2倍、半角カナは1倍のadvanceです（結合文字は後述の例外）。
 輪郭幅がadvanceを超える取り込み文字は、既定で水平方向のみ縮小して中央配置します。
 Ambiguous/Neutralなどの1セル文字と全角2セル文字に同じ規則を適用します。
 縦方向・ベースライン・advanceとCascadia由来の輪郭は変えません。
@@ -53,3 +53,18 @@ halfwidth_kana_scaleを指定します（既定1.0）。全角文字とadvance�
 水平方向50%に変換して1セルに配置します。別書体からの補完は行いません。
 補完したコードポイントをderived_halfwidth_codepointsへ記録し、警告も出します。
 元から半角グリフがある場合はその輪郭を優先します。
+
+## 結合文字（Mn / Me）
+
+日本語ドナーから取り込んだUnicode一般カテゴリMn/Meはadvanceを0にし、
+直前の文字へ重ねます。East Asian WidthがW/Fなら基準幅は2セル、
+それ以外（Ambiguousを含む）は1セルです。輪郭中心はそれぞれ`x=-cell`、
+`x=-cell/2`に置き、縦座標と設定済みベースラインは変えません。
+基準幅を超える輪郭には通常と同じ`fit_overflow` / `fit_margin`を適用します。
+余白はadvance=0ではなく基準幅に対する割合です。空輪郭も送り幅は0です。
+
+取り込んだマークをGDEF GlyphClassDefのmark(3)に追加し、
+マニフェストの`merge.zero_width_mark_codepoints`へ記録します。
+既存のGDEF分類・他のサブテーブル・GSUB/GPOSは変更しません。
+Cascadia由来の結合文字と非結合Ambiguous文字の1セル縮小方針は変更しません。
+日本語ドナーのGPOSアンカー移植は行わず、固定セル基準の重ね合わせです。

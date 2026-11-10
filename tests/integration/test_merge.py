@@ -303,7 +303,7 @@ def test_offline_build_orchestration(tmp_path, monkeypatch):
     make_font({65: 'a'}).save(base_path)
     donor_path = source / 'biz/1/donor.ttf'
     donor_path.parent.mkdir(parents=True)
-    make_font({0x3042: 'kana'}).save(donor_path)
+    make_font({0x3042: 'kana', 0x030F: 'mark'}).save(donor_path)
     records = []
     for identifier, path in [('cascadia', base_path), ('biz', donor_path)]:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -338,6 +338,11 @@ def test_offline_build_orchestration(tmp_path, monkeypatch):
         config, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
     assert manifest['sha256'] == hashlib.sha256(path.read_bytes()).hexdigest()
     from kumitype.validator import validate_all
+    assert manifest['merge']['zero_width_mark_codepoints'] == [0x030F]
+    manifest['merge']['zero_width_mark_codepoints'] = []
+    path.with_suffix('.json').write_text(json.dumps(manifest))
+    checked = validate_all(path.parent, harfbuzz='nonexistent-kumitype-hb-shape')
+    assert 'Zero-width mark inventory differs from binary' in checked[0]['errors']
     manifest['config']['project']['version'] = 'tampered'
     path.with_suffix('.json').write_text(json.dumps(manifest))
     checked = validate_all(path.parent, harfbuzz='nonexistent-kumitype-hb-shape')

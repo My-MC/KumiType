@@ -1,6 +1,8 @@
 """Binary integrity and protected-source invariants."""
+import copy
 import hashlib
 import json
+import unicodedata
 from dataclasses import asdict
 from importlib.metadata import version
 from io import BytesIO
@@ -13,6 +15,28 @@ from .downloader import sha256
 from .glyph_selector import cell_count, private_use
 from .metadata import metadata_errors
 from .shaping import compare_shaping
+
+
+def gdef_preserved(font, base, added_marks):
+    """Permit only class-3 entries for newly appended imported marks."""
+    if 'GDEF' not in font:
+        return 'GDEF' not in base
+    normalized = copy.deepcopy(font['GDEF'])
+    classes = normalized.table.GlyphClassDef
+    if classes is not None:
+        for name in added_marks:
+            if classes.classDefs.get(name) != 3:
+                return False
+            del classes.classDefs[name]
+    if 'GDEF' not in base:
+        return (normalized.table.Version == 0x00010000
+                and (classes is None or not classes.classDefs)
+                and all(getattr(normalized.table, attr, None) is None
+                        for attr in ('AttachList', 'LigCaretList', 'MarkAttachClassDef',
+                                     'MarkGlyphSetsDef', 'VarStore')))
+    if base['GDEF'].table.GlyphClassDef is None and classes is not None and not classes.classDefs:
+        normalized.table.GlyphClassDef = None
+    return normalized.compile(font) == base['GDEF'].compile(base)
 
 
 def validate(path: str | Path, base_path: str | Path | None = None, *,
@@ -28,6 +52,14 @@ def validate(path: str | Path, base_path: str | Path | None = None, *,
         errors.extend(metadata_errors(font, project_version))
         order = font.getGlyphOrder()
         cmap = font.getBestCmap() or {}
+        imported_marks = {cp: name for cp, name in cmap.items()
+                          if name.startswith('kumitype.u') and unicodedata.category(chr(cp)) in ('Mn', 'Me')}
+        classes = font['GDEF'].table.GlyphClassDef if 'GDEF' in font else None
+        for cp, name in imported_marks.items():
+            if font['hmtx'].metrics.get(name, (None,))[0] != 0:
+                errors.append(f'Nonzero imported mark advance: U+{cp:04X}')
+            if classes is None or classes.classDefs.get(name) != 3:
+                errors.append(f'Imported mark missing GDEF mark class: U+{cp:04X}')
         if 'fvar' in font:
             errors.append('Output is variable')
         if not 0 < len(order) <= 65535:
@@ -71,9 +103,12 @@ def validate(path: str | Path, base_path: str | Path | None = None, *,
                 for cp, name in original.items():
                     if private_use(cp) and cmap.get(cp) != name:
                         errors.append(f'Protected PUA changed: U+{cp:04X}')
-                for tag in ('GSUB', 'GPOS', 'GDEF'):
+                for tag in ('GSUB', 'GPOS'):
                     if tag in base and (tag not in font or base.getTableData(tag) != font.getTableData(tag)):
                         errors.append(f'Base layout table changed: {tag}')
+                added_marks = set(imported_marks.values()) - set(original_order)
+                if not gdef_preserved(font, base, added_marks):
+                    errors.append('Base layout table changed: GDEF')
         buffer = BytesIO()
         font.save(buffer)
         buffer.seek(0)
@@ -116,11 +151,16 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape') -> list[dic
                 names[ps] = str(path)
                 cmap = font.getBestCmap() or {}
                 cell = manifest['merge']['cell_width']
+                binary_marks = {cp for cp, name in cmap.items() if name.startswith('kumitype.u')
+                                and unicodedata.category(chr(cp)) in ('Mn', 'Me')}
+                if set(manifest['merge'].get('zero_width_mark_codepoints', [])) != binary_marks:
+                    result['errors'].append('Zero-width mark inventory differs from binary')
                 result['errors'].extend(check_halfwidth_kana(cmap, font['hmtx'].metrics, cell))
                 for cp in manifest['merge']['added_codepoints']:
                     if cp not in cmap:
                         result['errors'].append(f'Missing imported character: U+{cp:04X}')
-                    elif font['hmtx'].metrics[cmap[cp]][0] != cell * cell_count(cp):
+                    elif font['hmtx'].metrics[cmap[cp]][0] != (
+                            0 if unicodedata.category(chr(cp)) in ('Mn', 'Me') else cell * cell_count(cp)):
                         result['errors'].append(f'Incorrect cell width: U+{cp:04X}')
             result['shaping'] = compare_shaping(Path(base), path, harfbuzz)
             result['errors'].extend(result['shaping']['errors'])

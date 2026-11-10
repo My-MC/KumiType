@@ -55,6 +55,12 @@ def test_quality_metadata(tmp_path, weight, style):
         stat = loaded['STAT'].table
         assert [a.AxisTag for a in stat.DesignAxisRecord.Axis] == ['wght', 'ital']
         assert [v.Value for v in stat.AxisValueArray.AxisValue] == [weight, int(style == 'italic')]
+        ital = stat.AxisValueArray.AxisValue[1]
+        if style != 'italic':
+            assert ital.Format == 3
+            assert ital.LinkedValue == 1.0
+        else:
+            assert ital.Format == 1
 
 
 def test_validate_all_uses_manifest_project_version(tmp_path):

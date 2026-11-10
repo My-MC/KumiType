@@ -90,7 +90,7 @@ def apply_metadata(font, donor, target, project: dict, additional_donors=()) -> 
             {'value': target.weight, 'name': weight_name, 'flags': 2 if target.weight == 400 else 0}]},
         {'tag': 'ital', 'name': 'Italic', 'values': [
             {'value': int(italic), 'name': 'Italic' if italic else 'Roman',
-             'flags': 0 if italic else 2}]},
+             'flags': 0 if italic else 2, **({} if italic else {'linkedValue': 1.0})}]},
     ], macNames=False)
     return {'family': family, 'style': style, 'postscript_name': ps}
 

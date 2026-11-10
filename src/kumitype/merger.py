@@ -1,7 +1,9 @@
-"""Append donor outlines while retaining all base glyph IDs and layout tables."""
+"""Append donor outlines, preserving base layout except new GDEF mark classes."""
 import unicodedata
 from typing import NotRequired, TypedDict
 
+from fontTools.ttLib import newTable
+from fontTools.ttLib.tables import otTables
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 
 from .glyph_selector import cell_count, select_codepoints
@@ -9,6 +11,7 @@ from .glyph_transform import fit_glyph, transform_glyph
 
 
 class MergeReport(TypedDict):
+    zero_width_mark_codepoints: list[int]
     derived_halfwidth_codepoints: list[int]
     added_codepoints: list[int]
     overflow_codepoints: list[int]
@@ -43,7 +46,9 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
     added = {}
     overflow = []
     fitted = []
+    marks = []
     for cp in selected:
+        is_mark = unicodedata.category(chr(cp)) in ('Mn', 'Me')
         name = f'kumitype.u{cp:06X}'
         while name in base['glyf'].glyphs:
             name += '_'
@@ -59,6 +64,10 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
             was_fitted = exceeds and fit_overflow
             if was_fitted:
                 glyph, lsb, exceeds = fit_glyph(glyph, width, fit_margin)
+            if is_mark and glyph.numberOfContours:
+                glyph.coordinates.translate((-width, 0))
+                glyph.recalcBounds(None)
+                lsb = glyph.xMin
             if outline_cache:
                 outline_cache.put(cp, glyph, lsb, exceeds, was_fitted)
         else:
@@ -66,7 +75,9 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
         if was_fitted:
             fitted.append(cp)
         base['glyf'].glyphs[name] = glyph
-        base['hmtx'].metrics[name] = (width, lsb)
+        base['hmtx'].metrics[name] = (0 if is_mark else width, lsb)
+        if is_mark:
+            marks.append(cp)
         order.append(name)
         added[cp] = name
         if exceeds:
@@ -74,6 +85,18 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
     if outline_cache:
         outline_cache.save()
     base.setGlyphOrder(order)
+    if marks:
+        if 'GDEF' not in base:
+            base['GDEF'] = newTable('GDEF')
+            base['GDEF'].table = otTables.GDEF()
+            base['GDEF'].table.Version = 0x00010000
+            for attr in ('GlyphClassDef', 'AttachList', 'LigCaretList', 'MarkAttachClassDef'):
+                setattr(base['GDEF'].table, attr, None)
+        gdef = base['GDEF'].table
+        if gdef.GlyphClassDef is None:
+            gdef.GlyphClassDef = otTables.ClassDef()
+            gdef.GlyphClassDef.classDefs = {}
+        gdef.GlyphClassDef.classDefs.update({added[cp]: 3 for cp in marks})
     for table in base['cmap'].tables:
         if table.isUnicode() and table.format in (4, 12):
             table.cmap.update({cp: name for cp, name in added.items()
@@ -86,13 +109,13 @@ def merge(base, donor, *, jp_scale=1.0, baseline_offset=0, overrides=None, outli
         base['cmap'].tables.append(table)
     base['maxp'].numGlyphs = len(order)
     base['OS/2'].recalcUnicodeRanges(base)
-    return {'derived_halfwidth_codepoints': derived_halfwidth, 'added_codepoints': selected, 'overflow_codepoints': overflow, 'fitted_codepoints': fitted,
+    return {'zero_width_mark_codepoints': marks, 'derived_halfwidth_codepoints': derived_halfwidth, 'added_codepoints': selected, 'overflow_codepoints': overflow, 'fitted_codepoints': fitted,
             'ivs_inherited': False, 'cell_width': cell}
 
 
 def merge_many(base, donors, **options) -> MergeReport:
     """Merge ordered subset sources, importing each Unicode scalar once."""
-    combined: MergeReport = {'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'fitted_codepoints': [], 'ivs_inherited': False}
+    combined: MergeReport = {'zero_width_mark_codepoints': [], 'derived_halfwidth_codepoints': [], 'added_codepoints': [], 'overflow_codepoints': [], 'fitted_codepoints': [], 'ivs_inherited': False}
     imported: set[int] = set()
     for donor in donors:
         # Earlier subsets win if their coverage overlaps.
@@ -103,8 +126,10 @@ def merge_many(base, donors, **options) -> MergeReport:
         combined['added_codepoints'].extend(result['added_codepoints'])
         combined['overflow_codepoints'].extend(result['overflow_codepoints'])
         combined['fitted_codepoints'].extend(result['fitted_codepoints'])
+        combined['zero_width_mark_codepoints'].extend(result['zero_width_mark_codepoints'])
         combined['cell_width'] = result['cell_width']
     combined['added_codepoints'].sort()
     combined['overflow_codepoints'].sort()
     combined['fitted_codepoints'].sort()
+    combined['zero_width_mark_codepoints'].sort()
     return combined
