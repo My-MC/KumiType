@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run the offline release pipeline, retaining per-stage logs and CPU/wall times."""
+"""Run the offline release pipeline, retaining per-stage logs and wall times."""
 import argparse
 import json
 from pathlib import Path
-import resource
 import subprocess
 import sys
 import time
@@ -49,22 +48,17 @@ def main():
     report = {'jobs': args.jobs, 'selection': selection.summary(), 'stages': []}
     started = time.monotonic()
     for name, command in stages:
-        before = resource.getrusage(resource.RUSAGE_CHILDREN)
         stage_start = time.monotonic()
         print(f'{name}: starting', file=sys.stderr, flush=True)
         with (build / f'pipeline-{name}.stdout.log').open('w') as stdout, \
                 (build / f'pipeline-{name}.stderr.log').open('w') as stderr:
             result = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr)
-        after = resource.getrusage(resource.RUSAGE_CHILDREN)
         seconds = time.monotonic() - stage_start
-        cpu = after.ru_utime + after.ru_stime - before.ru_utime - before.ru_stime
         report['stages'].append({'name': name, 'command': command, 'seconds': seconds,
-                                 'cpu_seconds': cpu, 'cpu_percent': cpu / seconds * 100,
                                  'returncode': result.returncode})
         report['total_seconds'] = time.monotonic() - started
         write_text(build / 'pipeline-timings.json', json.dumps(report, indent=2) + '\n')
-        print(f'{name}: {seconds:.2f}s, CPU {cpu / seconds * 100:.1f}%, '
-              f'exit {result.returncode}', file=sys.stderr, flush=True)
+        print(f'{name}: {seconds:.2f}s, exit {result.returncode}', file=sys.stderr, flush=True)
         if result.returncode:
             return result.returncode
     return 0

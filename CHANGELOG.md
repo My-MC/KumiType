@@ -13,7 +13,7 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 ### 追加
 
 - `validate`・`package`に共通の`--jobs N|auto`を追加し、TTF検証・ファミリーZIP生成をプロセス並列化しました。レポート順序とZIP再現性は維持します。
-- `make release`と`scripts/release.py`で同じ対象選択のbuild→audit→HarfBuzz必須validate→package→check-packagesを実行し、工程別の経過時間・CPU時間・終了コードを`pipeline-timings.json`へ保存します。
+- `make release`と`scripts/release.py`で同じ対象選択のbuild→audit→HarfBuzz必須validate→package→check-packagesを実行し、工程別の経過時間・終了コードを`pipeline-timings.json`へ保存します。
 
 - `build`・`list`・`validate`・`audit`・`package`で共通の`--base`・`--jp`・`--weight`・`--style`・`--family`による対象選択を追加しました。
   繰り返し・カンマ区切り、ファミリーの`base/jp`形式と出力名、次元同士の積集合に対応します。

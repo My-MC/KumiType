@@ -106,7 +106,7 @@ uv run --locked python scripts/release.py --config config/build.yaml --jobs auto
 build → audit → HarfBuzz必須validate → package → check-packagesを実行します。
 `BASE`・`JP`・`FAMILY`は全工程で同じ選択範囲を使用します。完全ファミリーが必要なため、
 `WEIGHT`・`STYLE`による部分リリースは開始前にエラーにします。
-各工程のコマンド・終了コード・経過秒・CPU秒・CPU使用率を`build/pipeline-timings.json`に保存し、
+各工程のコマンド・終了コード・経過秒を`build/pipeline-timings.json`に保存し、
 標準出力・標準エラーは`build/pipeline-<工程>.stdout.log` / `.stderr.log`へ保存します。
 `BUILD_DIR`を変更した場合はその配下です。失敗した工程で停止し、そこまでの計測も残します。
 既存出力を削除しないので、部分リリースの監査には選択対象だけを含む専用のbuild/distを推奨します。
@@ -209,7 +209,7 @@ ZIPは`dist/`に保存します。
 別の生成先を使う場合は、`build-all`の`--output-dir`と、検証・パッケージ化の`--build-dir`に同じパスを指定します。`package`の`--output-dir`はZIPの保存先です。
 
 > [!NOTE]
-> 8コアVMでの全数実測は生成約26分、監査・検証・パッケージ化を含め計約2時間16分です。並列数やキャッシュで変わります。確認範囲は[検証状況](ACCEPTANCE_STATUS.md)を参照してください。
+> 8 vCPU / 約15 GiB VMの全504本実測（変換キャッシュ保持、`drop_caches`なし）は、`auto`＝8並列で **21分30秒**です。build 12分56秒、audit 2秒、HarfBuzz必須validate 7分23秒、package 32秒、check-packages 38秒でした。`jobs=7`・`worker_memory_mb=640`・`max_jobs=7`・`fail_on_error=false`で空の出力先へ再生成しても、TTF 504本・ZIP 42個のSHA-256は全一致し、総時間は24分33秒でした。入力・ホスト負荷・キャッシュで変わるため保証値ではありません。
 
 ## 設定・パス・キャッシュ
 

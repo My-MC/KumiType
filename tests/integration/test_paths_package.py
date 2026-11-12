@@ -107,6 +107,9 @@ def test_release_pipeline_timings(project, monkeypatch):
     assert [stage['name'] for stage in timings['stages']] == [
         'build', 'audit', 'validate', 'package', 'check-packages']
     assert all(stage['returncode'] == 0 and stage['seconds'] >= 0 for stage in timings['stages'])
+    # RUSAGE_CHILDREN omits forkserver workers; do not publish it as total CPU.
+    assert all(set(stage) == {'name', 'command', 'seconds', 'returncode'}
+               for stage in timings['stages'])
 
 
 def add_second_base(project):
