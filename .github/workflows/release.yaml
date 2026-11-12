@@ -41,10 +41,11 @@ jobs:
         name: Verify versions and CHANGELOG, generate matrix and notes
         env:
           EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
           TAG: ${{ github.ref_name }}
         run: |
           args=()
-          if [[ "$EVENT" == push ]]; then
+          if [[ "$EVENT" == push && "$REF_TYPE" == tag ]]; then
             args+=(--tag "$TAG")
           else
             args+=(--dry-run)
@@ -116,7 +117,7 @@ jobs:
             dist/release-inventory.json
             build-release/release-notes.md
       - name: Create or replace assets of draft only
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
