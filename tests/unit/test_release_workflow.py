@@ -60,19 +60,34 @@ def test_assemble_exact_inventory_and_checksums(tmp_path):
 
 def test_cli_preflight_dry_run_outputs_matrix_notes_and_version(tmp_path):
     import json
+    import shutil
     import subprocess
     import sys
-    result = subprocess.run([sys.executable, str(SCRIPT), 'preflight', '--dry-run',
-                             '--output', str(tmp_path)], cwd=SCRIPT.parents[1], capture_output=True, text=True)
+    import yaml
+
+    shutil.copytree(SCRIPT.parents[1] / 'config', tmp_path / 'config')
+    config_path = tmp_path / 'config/build.yaml'
+    config = yaml.safe_load(config_path.read_text())
+    config['project']['version'] = '1.2.3'
+    config_path.write_text(yaml.safe_dump(config))
+    (tmp_path / 'pyproject.toml').write_text('[project]\nversion = "1.2.3"\n')
+    changelog = tmp_path / 'CHANGELOG.md'
+    changelog.write_text('## [Unreleased]\n\n### 追加\n\n- Fixture.\n')
+    command = [sys.executable, str(SCRIPT), 'preflight', '--output', str(tmp_path / 'notes')]
+    result = subprocess.run([*command, '--dry-run'], cwd=tmp_path, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
-    assert data['version'] == '0.1.0'
+    assert data['version'] == '1.2.3'
     assert len(data['matrix']['jp']) == 7
-    assert '追加' in (tmp_path / 'release-notes.md').read_text()
-    strict = subprocess.run([sys.executable, str(SCRIPT), 'preflight', '--tag', 'v0.1.0',
-                             '--output', str(tmp_path)], cwd=SCRIPT.parents[1], capture_output=True, text=True)
+    assert '追加' in (tmp_path / 'notes/release-notes.md').read_text()
+    strict = subprocess.run([*command, '--tag', 'v1.2.3'], cwd=tmp_path, capture_output=True, text=True)
     assert strict.returncode != 0
     assert 'CHANGELOG' in strict.stderr
+    changelog.write_text('## [Unreleased]\n\n## [1.2.3] - 2026-11-12\n\n- Released.\n')
+    for tag in ['v1.2.3', 'v1.2.3-rc.1']:
+        released = subprocess.run([*command, '--tag', tag], cwd=tmp_path, capture_output=True, text=True)
+        assert released.returncode == 0, released.stderr
+        assert (tmp_path / 'notes/release-notes.md').read_text() == '- Released.\n'
 
 
 CHANGELOG = '''# Changelog
