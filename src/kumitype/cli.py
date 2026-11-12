@@ -38,6 +38,8 @@ def main() -> int:
                             help='Fail if shaping cannot be checked')
     packaging = sub.add_parser('package', help='Package generated families with licenses')
     packaging.add_argument('--all', action='store_true')
+    for command in (validation, packaging):
+        command.add_argument('--jobs', default=None)
     updating = sub.add_parser('update-source', help='Explicitly update one pinned source record')
     for option in ('id', 'version', 'url', 'sha256', 'format'):
         updating.add_argument('--' + option, required=True)
@@ -90,12 +92,12 @@ def main() -> int:
                 raise ValueError('Partial packages with --weight/--style are not supported; select families')
             for archive in package_all(root=args.build_dir, source=args.source_dir,
                                        output=args.output_dir, lock=args.lock,
-                                       config=config, selected=selected):
+                                       config=config, selected=selected, jobs=args.jobs):
                 print(archive)
             return 0
         if args.command == 'validate':
             results = validate_all(root=args.build_dir, harfbuzz=args.harfbuzz,
-                                   config=config, selected=selected)
+                                   config=config, selected=selected, jobs=args.jobs)
             if args.require_harfbuzz:
                 for result in results:
                     if result.get('shaping', {}).get('status') != 'passed':

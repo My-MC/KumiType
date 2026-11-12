@@ -12,6 +12,9 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 
 ### 追加
 
+- `validate`・`package`に共通の`--jobs N|auto`を追加し、TTF検証・ファミリーZIP生成をプロセス並列化しました。レポート順序とZIP再現性は維持します。
+- `make release`と`scripts/release.py`で同じ対象選択のbuild→audit→HarfBuzz必須validate→package→check-packagesを実行し、工程別の経過時間・CPU時間・終了コードを`pipeline-timings.json`へ保存します。
+
 - `build`・`list`・`validate`・`audit`・`package`で共通の`--base`・`--jp`・`--weight`・`--style`・`--family`による対象選択を追加しました。
   繰り返し・カンマ区切り、ファミリーの`base/jp`形式と出力名、次元同士の積集合に対応します。
 - 選択対象の並列ビルド、ファミリー一覧と本数のJSON表示、対象限定の検証・完全性監査、全ウェイト・全スタイルが揃ったファミリーだけのZIP作成を追加しました。
@@ -54,6 +57,9 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 - 検証ガイドを「目的 → コマンド → 結果の見方」に統一し、輪郭調整ガイドに設定キー表とセル配置図を追加しました。この変更履歴も分類別に整理しました。
 
 ### 修正
+
+- Linuxの使用可能メモリを回収可能なページキャッシュを含む`MemAvailable`で見積もるようにし、cgroup v1/v2の現在グループ・祖先の上限も考慮します。既定のワーカー見積もりを実測最大RSS 464 MiBから余裕を持たせた768 MiBへ変更し、決定した並列数と根拠を標準エラーへ表示します。
+- packageの完全再検証は、同じTTF SHA-256と現在のbuilder provenanceを持つ成功記録がある場合のみ省略します。記録なし・不一致は従来検証へ戻り、実際のZIP格納バイトもハッシュ照合します。手動フルビルドCIの並列数を`auto`に統一しました。
 
 - 生成フォントから `DSIG` を除去し、JIS/Japanコードページbit 17、ベンダーID `NONE`、`project.version` 由来の `head.fontRevision` を設定しました。validatorで4種類の個別違反を検出し、16.16固定小数点の丸めとマニフェストに基づく再検証を統一しました（[PR #1](https://github.com/My-MC/KumiType/pull/1)）。
 - セル幅を超える日本語取り込み輪郭を、既定で1セル・2セル内へ水平縮小するようにしました。Ambiguous・Neutral・半角カナにも適用し、最終二次曲線で判定します。縦座標・ベースライン・送り幅・Cascadia由来の輪郭・非超過輪郭は保持します（[PR #2](https://github.com/My-MC/KumiType/pull/2)）。

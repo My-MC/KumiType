@@ -18,7 +18,7 @@ from .metadata import JP_NAMES, WEIGHT_NAMES, apply_metadata
 from .outline_cache import OutlineCache
 from .provenance import WORKER_PROVENANCE
 from .report import write_build_report
-from .resources import worker_count
+from .resources import configured_workers
 from .source_registry import locked_manifests
 from .validator import validate
 
@@ -167,9 +167,7 @@ def build_all(config: dict, jobs=None, source=None, output=None, *, selected=Non
     source = resolve_path(config, source or config.get('paths', {}).get('source', 'source'))
     output = resolve_path(config, output or config.get('paths', {}).get('build', 'build'))
     settings = config.get('build', {})
-    jobs = worker_count(jobs if jobs is not None else settings.get('jobs', 'auto'),
-                        worker_memory_mb=settings.get('worker_memory_mb', 2048),
-                        max_jobs=settings.get('max_jobs'))
+    jobs = configured_workers(config, jobs)
     matrix = targets(config) if selected is None else selected
     results = []
     errors = []
