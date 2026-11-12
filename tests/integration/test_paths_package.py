@@ -55,6 +55,147 @@ def invoke(monkeypatch, project, *args):
     return main()
 
 
+@pytest.mark.parametrize('mutation', ['none', 'provenance', 'missing', 'no-validation', 'malformed', 'invalid', 'sha'])
+def test_package_validation_reuse(project, monkeypatch, mutation):
+    from kumitype import packager
+    from kumitype.config import load
+
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    path = next((project / 'build').rglob('*.ttf')).with_suffix('.json')
+    record = json.loads(path.read_text())
+    if mutation == 'provenance':
+        record['builder']['implementation_sha256'] = 'stale'
+    elif mutation == 'missing':
+        record.pop('builder')
+    elif mutation == 'no-validation':
+        record.pop('validation')
+    elif mutation == 'malformed':
+        record['validation'] = None
+    elif mutation == 'invalid':
+        record['validation'] = {'valid': True, 'errors': ['failure']}
+    elif mutation == 'sha':
+        record['sha256'] = '0' * 64
+    path.write_text(json.dumps(record))
+    calls = []
+    original = packager.validate
+    def checked(*args, **kwargs):
+        calls.append(args)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(packager, 'validate', checked)
+    options = dict(root=project / 'build', source=project / 'source',
+                   lock=project / 'pins.toml', output=project / 'dist',
+                   config=load(project / 'build.yaml'), jobs=1)
+    if mutation == 'sha':
+        with pytest.raises(ValueError, match='modified'):
+            packager.package_all(**options)
+        assert calls
+    else:
+        packager.package_all(**options)
+        assert bool(calls) == (mutation != 'none')
+
+
+def test_release_pipeline_timings(project, monkeypatch):
+    import subprocess
+    import sys
+
+    script = Path(__file__).parents[2] / 'scripts/release.py'
+    result = subprocess.run([sys.executable, str(script), '--config', str(project / 'build.yaml'),
+                             '--jobs', '2', '--family', 'mono/biz'],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    timings = json.loads((project / 'build/pipeline-timings.json').read_text())
+    assert [stage['name'] for stage in timings['stages']] == [
+        'build', 'audit', 'validate', 'package', 'check-packages']
+    assert all(stage['returncode'] == 0 and stage['seconds'] >= 0 for stage in timings['stages'])
+    # RUSAGE_CHILDREN omits forkserver workers; do not publish it as total CPU.
+    assert all(set(stage) == {'name', 'command', 'seconds', 'returncode'}
+               for stage in timings['stages'])
+
+
+def add_second_base(project):
+    import shutil
+
+    base = project / 'source/cascadia/1/ttf/static/CascadiaMono-Regular.ttf'
+    shutil.copyfile(base, base.with_name('CascadiaCode-Regular.ttf'))
+    manifest_path = project / 'source/cascadia/1/source-manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['fonts'].append({**manifest['fonts'][0],
+                              'path': str(base.with_name('CascadiaCode-Regular.ttf'))})
+    manifest_path.write_text(json.dumps(manifest))
+    config = yaml.safe_load((project / 'build.yaml').read_text())
+    config['variants'] = ['mono', 'code']
+    (project / 'build.yaml').write_text(yaml.safe_dump(config))
+
+
+def test_packaging_checks_exact_archived_bytes(project, monkeypatch):
+    from kumitype import packager
+    from kumitype.config import load
+
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    original = packager.sha256
+    changed = False
+    def raced(path):
+        nonlocal changed
+        digest = original(path)
+        if path.suffix == '.ttf' and not changed:
+            path.write_bytes(path.read_bytes() + b'changed-after-validation')
+            changed = True
+        return digest
+    monkeypatch.setattr(packager, 'sha256', raced)
+    with pytest.raises(ValueError, match='modified output'):
+        packager.package_all(root=project / 'build', source=project / 'source',
+                             lock=project / 'pins.toml', output=project / 'dist',
+                             config=load(project / 'build.yaml'), jobs=1)
+
+
+def test_package_parallel_bytes(project, monkeypatch):
+    add_second_base(project)
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    assert invoke(monkeypatch, project, 'package', '--all', '--jobs', '1') == 0
+    original = {p.name: p.read_bytes() for p in (project / 'dist').glob('*.zip')}
+    assert len(original) == 2
+    assert invoke(monkeypatch, project, 'package', '--all', '--jobs', '2') == 0
+    assert {p.name: p.read_bytes() for p in (project / 'dist').glob('*.zip')} == original
+
+
+def test_rebuild_tuning_preserves_ttf_and_zip_bytes(project, monkeypatch):
+    add_second_base(project)
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    assert invoke(monkeypatch, project, 'package', '--jobs', '1') == 0
+    first = {str(p.relative_to(project)): p.read_bytes()
+             for folder, pattern in [('build', '*.ttf'), ('dist', '*.zip')]
+             for p in (project / folder).rglob(pattern)}
+    assert len(first) == 4
+    config = yaml.safe_load((project / 'build.yaml').read_text())
+    config['build'] = dict(jobs=2, worker_memory_mb=640, max_jobs=2, fail_on_error=False)
+    (project / 'build.yaml').write_text(yaml.safe_dump(config))
+    assert invoke(monkeypatch, project, 'build') == 0
+    assert invoke(monkeypatch, project, 'package') == 0
+    assert {path: (project / path).read_bytes() for path in first} == first
+    manifest = json.loads(next((project / 'build').rglob('*.ttf')).with_suffix('.json').read_text())
+    assert manifest['config']['build'] == config['build']  # diagnostics remain intact
+
+
+def test_validation_parallel_matches_serial(project, monkeypatch):
+    from kumitype.config import load
+    from kumitype.validator import validate_all
+
+    add_second_base(project)
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    config = load(project / 'build.yaml')
+    root = project / 'build'
+    import shutil
+    # Duplicate names remain a global invariant even across separate workers.
+    path = next(root.rglob('*.ttf'))
+    shutil.copyfile(path, root / path.name)
+    shutil.copyfile(path.with_suffix('.json'), root / path.with_suffix('.json').name)
+    serial = validate_all(root, config=config, jobs=1)
+    parallel = validate_all(root, config=config, jobs=2)
+    assert serial == parallel
+    assert len(serial) == 3
+    assert any('Duplicate PostScript' in str(r['errors']) for r in serial)
+
+
 def test_external_cwd_build_validate_package_routes_cache(project, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert invoke(monkeypatch, project, 'build', '--base', 'mono', '--jp', 'biz',

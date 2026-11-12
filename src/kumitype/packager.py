@@ -16,6 +16,9 @@ from .metadata import expected_identity
 from .selection import target_path
 from .source_registry import locked_manifests
 from .validator import validate
+from .provenance import WORKER_PROVENANCE
+from .resources import configured_workers
+from concurrent.futures import ProcessPoolExecutor
 
 RUNTIME_FIELDS = frozenset(('generated_at', 'duration_seconds', 'process_peak_rss_kib'))
 
@@ -38,6 +41,14 @@ def packaged_manifest(manifest: dict) -> dict:
         return value
 
     result = portable(manifest)
+    # Scheduling affects execution, not font content. Keep content-affecting
+    # build options (and any unknown future keys) in distribution provenance.
+    build = result.get('config', {}).get('build')
+    if isinstance(build, dict):
+        for key in ('jobs', 'worker_memory_mb', 'max_jobs', 'fail_on_error'):
+            build.pop(key, None)
+        if not build:
+            result['config'].pop('build')
     if 'config_sha256' in result:
 
         result['config_sha256'] = hashlib.sha256(json.dumps(
@@ -63,7 +74,7 @@ def zip_datetime() -> tuple:
 
 
 def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
-                lock=Path('config/sources.lock.toml'), *, config=None, selected=None) -> list[Path]:
+                lock=Path('config/sources.lock.toml'), *, config=None, selected=None, jobs=None) -> list[Path]:
     paths = sorted(root.rglob('*.ttf'))
     if selected is not None:
         paths = [target_path(root, config, t) for t in selected]
@@ -81,75 +92,106 @@ def package_all(root=Path('build'), source=Path('source'), output=Path('dist'),
                 Target(**manifest['target']) not in selected or
                 target_path(root, config, Target(**manifest['target'])) != path):
             raise ValueError(f'Target mismatch: {path}')
-        if not manifest['validation']['valid'] or sha256(path) != manifest['sha256']:
+        if not isinstance(manifest.get('identity'), dict):
             raise ValueError(f'Unvalidated or modified output: {path}')
+        groups.setdefault(manifest['identity']['family'], []).append((path, manifest))
+    output.mkdir(parents=True, exist_ok=True)
+    workers = configured_workers(config, jobs)
+    timestamp = zip_datetime()
+    tasks = [(family, fonts, source, output, lock, timestamp) for family, fonts in groups.items()]
+    if not tasks:
+        raise ValueError('No validated generated fonts found')
+    if workers == 1:
+        return list(map(_package_family, tasks))
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(_package_family, tasks))
+
+
+def reusable_validation(manifest: dict) -> bool:
+    """Caller must first verify the actual TTF hash against this manifest.
+
+    Build-time validation and its output digest are saved together atomically.
+    Missing/old implementation or dependency identities never authorize reuse.
+    """
+    result = manifest.get('validation', {})
+    return (isinstance(result, dict) and manifest.get('builder') == WORKER_PROVENANCE and
+            result.get('valid') is True and result.get('errors') == [])
+
+
+def _package_family(task):
+    family, fonts, source, output, lock, timestamp = task
+    for path, manifest in fonts:
+        hash_matches = sha256(path) == manifest['sha256']
         identity = expected_identity(Target(**manifest['target']), manifest['config']['project'])
         if manifest['identity'] != identity:
             raise ValueError(f'Obsolete font naming; rebuild required: {path}')
-        checked = validate(path, manifest['sources'][0]['path'],
-                           project_version=manifest['config']['project'].get('version'))
-        if not checked['valid']:
-            raise ValueError(f'Font failed current validation: {path}: {checked["errors"]}')
-        groups.setdefault(manifest['identity']['family'], []).append((path, manifest))
-    output.mkdir(parents=True, exist_ok=True)
-    archives = []
-    for family, fonts in groups.items():
-        japanese = fonts[0][1]['target']['japanese']
-        licenses = []
-        for record in locked_manifests(source, lock):
-            manifest_path = source / record['id'] / record['version'] / 'source-manifest.json'
-            if record['id'] not in ('cascadia-license', japanese, japanese + '-license'):
-                continue
-            for path in manifest_path.parent.rglob('*'):
-                if path.is_file() and path.name.lower() in ('license', 'license.txt', 'ofl.txt'):
-                    if record['format'] == 'text' and sha256(path) != record['sha256']:
-                        raise ValueError(f'License checksum mismatch: {path}')
-                    licenses.append((record['id'], path))
-        if not any(identifier == 'cascadia-license' for identifier, _ in licenses):
-            raise ValueError('Missing Cascadia license; run kumitype fetch')
-        if not any(identifier.startswith(japanese) for identifier, _ in licenses):
-            raise ValueError(f'Missing Japanese license: {japanese}')
-        extra_licenses = {}
-        for _, manifest in fonts:
-            for entry in manifest.get('additional_licenses', []):
-                path = Path(entry['path'])
-                if sha256(path) != entry['sha256']:
-                    raise ValueError(f'Additional license checksum mismatch: {path}')
-                extra_licenses[entry['sha256']] = path
-        destination = output / (family.replace(' ', '-') + '.zip')
-        copyright_text = []
-        entries = {}
-        for path, manifest in fonts:
-            entries[path.name] = path.read_bytes()
-            entries['manifests/' + path.stem + '.json'] = json_bytes(packaged_manifest(manifest))
-            with TTFont(path) as font:
-                copyright_text.append(font['name'].getDebugName(0) or '')
-        for identifier, path in sorted(licenses):
-            entries['licenses/' + identifier + '/' + path.name] = path.read_bytes()
-            provenance = next((parent / 'source-manifest.json' for parent in path.parents
-                               if (parent / 'source-manifest.json').exists()), None)
-            if provenance is not None:
-                entries['sources/' + identifier + '.json'] = json_bytes(
-                    packaged_manifest(json.loads(provenance.read_text(encoding='utf-8'))))
-        for digest, path in sorted(extra_licenses.items()):
-            entries['licenses/additional/' + digest[:16] + '-' + path.name] = path.read_bytes()
-        versions = sorted({manifest['config']['project'].get('version', 'unknown')
-                           for _, manifest in fonts})
-        entries['VERSION.txt'] = ('\n'.join(versions) + '\n').encode('utf-8')
-        entries['COPYRIGHT.txt'] = '\n\n'.join(sorted(set(copyright_text))).encode('utf-8')
-        entries['README.txt'] = (family + '\nModified composite font built by KumiType.\n'
-                               'Cascadia layout preserved; Japanese outlines added without donor hinting.\n'
-                               'See manifests for versions, source URLs, settings and checksums.\n').encode('utf-8')
-        timestamp = zip_datetime()
-        with atomic_output(destination) as temporary:
-            with zipfile.ZipFile(temporary, 'w') as archive:
-                for name, payload in sorted(entries.items()):
-                    info = zipfile.ZipInfo(name, date_time=timestamp)
-                    info.create_system = 3
-                    info.external_attr = 0o100644 << 16
-                    info.compress_type = zipfile.ZIP_DEFLATED
-                    archive.writestr(info, payload, compresslevel=9)
-        archives.append(destination)
-    if not archives:
-        raise ValueError('No validated generated fonts found')
-    return archives
+        if not hash_matches or not reusable_validation(manifest):
+            checked = validate(path, manifest['sources'][0]['path'],
+                               project_version=manifest['config']['project'].get('version'))
+            if not checked['valid']:
+                raise ValueError(f'Font failed current validation: {path}: {checked["errors"]}')
+        if not hash_matches:
+            raise ValueError(f'Unvalidated or modified output: {path}')
+        with TTFont(path, lazy=True) as font:
+            if (font['name'].getDebugName(6) != identity['postscript_name'] or
+                    font['name'].getDebugName(16) != identity['family'] or
+                    font['OS/2'].usWeightClass != manifest['target']['weight']):
+                raise ValueError(f'Font identity differs from manifest: {path}')
+    japanese = fonts[0][1]['target']['japanese']
+    licenses = []
+    for record in locked_manifests(source, lock):
+        manifest_path = source / record['id'] / record['version'] / 'source-manifest.json'
+        if record['id'] not in ('cascadia-license', japanese, japanese + '-license'):
+            continue
+        for path in manifest_path.parent.rglob('*'):
+            if path.is_file() and path.name.lower() in ('license', 'license.txt', 'ofl.txt'):
+                if record['format'] == 'text' and sha256(path) != record['sha256']:
+                    raise ValueError(f'License checksum mismatch: {path}')
+                licenses.append((record['id'], path))
+    if not any(identifier == 'cascadia-license' for identifier, _ in licenses):
+        raise ValueError('Missing Cascadia license; run kumitype fetch')
+    if not any(identifier.startswith(japanese) for identifier, _ in licenses):
+        raise ValueError(f'Missing Japanese license: {japanese}')
+    extra_licenses = {}
+    for _, manifest in fonts:
+        for entry in manifest.get('additional_licenses', []):
+            path = Path(entry['path'])
+            if sha256(path) != entry['sha256']:
+                raise ValueError(f'Additional license checksum mismatch: {path}')
+            extra_licenses[entry['sha256']] = path
+    destination = output / (family.replace(' ', '-') + '.zip')
+    copyright_text = []
+    entries = {}
+    for path, manifest in fonts:
+        payload = path.read_bytes()
+        if hashlib.sha256(payload).hexdigest() != manifest['sha256']:
+            raise ValueError(f'Unvalidated or modified output: {path}')
+        entries[path.name] = payload
+        entries['manifests/' + path.stem + '.json'] = json_bytes(packaged_manifest(manifest))
+        with TTFont(path) as font:
+            copyright_text.append(font['name'].getDebugName(0) or '')
+    for identifier, path in sorted(licenses):
+        entries['licenses/' + identifier + '/' + path.name] = path.read_bytes()
+        provenance = next((parent / 'source-manifest.json' for parent in path.parents
+                           if (parent / 'source-manifest.json').exists()), None)
+        if provenance is not None:
+            entries['sources/' + identifier + '.json'] = json_bytes(
+                packaged_manifest(json.loads(provenance.read_text(encoding='utf-8'))))
+    for digest, path in sorted(extra_licenses.items()):
+        entries['licenses/additional/' + digest[:16] + '-' + path.name] = path.read_bytes()
+    versions = sorted({manifest['config']['project'].get('version', 'unknown')
+                       for _, manifest in fonts})
+    entries['VERSION.txt'] = ('\n'.join(versions) + '\n').encode('utf-8')
+    entries['COPYRIGHT.txt'] = '\n\n'.join(sorted(set(copyright_text))).encode('utf-8')
+    entries['README.txt'] = (family + '\nModified composite font built by KumiType.\n'
+                           'Cascadia layout preserved; Japanese outlines added without donor hinting.\n'
+                           'See manifests for versions, source URLs, settings and checksums.\n').encode('utf-8')
+    with atomic_output(destination) as temporary:
+        with zipfile.ZipFile(temporary, 'w') as archive:
+            for name, payload in sorted(entries.items()):
+                info = zipfile.ZipInfo(name, date_time=timestamp)
+                info.create_system = 3
+                info.external_attr = 0o100644 << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                archive.writestr(info, payload, compresslevel=9)
+    return destination

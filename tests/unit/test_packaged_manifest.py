@@ -37,6 +37,28 @@ def test_packaged_manifest_keeps_content_identity_but_not_storage(tmp_path):
     assert packaged_manifest(manifest)['config_sha256'] != projected['config_sha256']
 
 
+def test_execution_tuning_is_not_distribution_identity():
+    original = {'config': {'project': {'version': '0.1.0'},
+                            'build': {'output_format': 'ttf', 'jobs': 'auto', 'fail_on_error': True}},
+                'config_sha256': 'diagnostic-only'}
+    tuned = copy.deepcopy(original)
+    tuned['config']['build'].update(jobs=2, worker_memory_mb=640, max_jobs=4, fail_on_error=False)
+    assert packaged_manifest(tuned) == packaged_manifest(original)
+    assert original['config']['build']['jobs'] == 'auto'
+    projected = packaged_manifest(tuned)
+    assert projected['config']['build'] == {'output_format': 'ttf'}
+    assert packaged_manifest(projected) == projected
+    tuned['config']['build']['output_format'] = 'other-content-format'
+    assert packaged_manifest(tuned)['config_sha256'] != projected['config_sha256']
+
+
+def test_runtime_only_build_block_matches_omitted_block():
+    manifest = {'config': {}, 'config_sha256': 'diagnostic'}
+    tuned = {'config': {'build': {'jobs': 'auto', 'worker_memory_mb': 768}},
+             'config_sha256': 'other-diagnostic'}
+    assert packaged_manifest(manifest) == packaged_manifest(tuned)
+
+
 def test_source_manifest_projection_removes_nested_absolute_font_paths(tmp_path):
     record = {'id': 'donor', 'version': '1', 'url': 'https://example.org/donor',
               'sha256': 'archive-hash', 'fonts': [{'path': str(tmp_path / 'font.ttf'),

@@ -47,10 +47,10 @@ jobs:
           [[ -z "$BASES" ]] || selectors+=(--base "$BASES")
           [[ -z "$JAPANESE_FONTS" ]] || selectors+=(--jp "$JAPANESE_FONTS")
           uv run --locked kumitype list "${selectors[@]}"
-          uv run --locked kumitype build "${selectors[@]}" --jobs 2
+          uv run --locked kumitype build "${selectors[@]}" --jobs auto
           uv run --locked kumitype audit "${selectors[@]}"
-          uv run --locked kumitype validate "${selectors[@]}" --require-harfbuzz
-          uv run --locked kumitype package "${selectors[@]}"
+          uv run --locked kumitype validate "${selectors[@]}" --require-harfbuzz --jobs auto
+          uv run --locked kumitype package "${selectors[@]}" --jobs auto
       # Independent 28-font acceptance subset; universal includes OpenType checks.
       - if: inputs.families == '' && inputs.bases == '' && inputs.japanese_fonts == ''
         run: uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality > build-quality-goal.json

@@ -118,13 +118,43 @@ def validate(path: str | Path, base_path: str | Path | None = None, *,
     return {'valid': not errors, 'errors': errors}
 
 
+def _validate_task(task):
+    root, path, harfbuzz, config, selected = task
+    return _validate_paths(root, harfbuzz=harfbuzz, config=config,
+                           selected=selected, paths=[path])[0]
+
+
 def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape',
-                 config=None, selected=None) -> list[dict]:
-    """Revalidate tracked outputs, including manifest hashes and source invariants."""
-    results = []
-    names = {}
+                 config=None, selected=None, jobs=None) -> list[dict]:
+    """Validate independently in processes; reduce global invariants in input order."""
+    from concurrent.futures import ProcessPoolExecutor
+    from .resources import configured_workers
+
     paths = (sorted(root.rglob('*.ttf')) if selected is None else
              [target_path(root, config, t) for t in selected])
+    workers = configured_workers(config, jobs)
+    tasks = [(root, path, harfbuzz, config, selected) for path in paths]
+    if workers == 1:
+        results = list(map(_validate_task, tasks))
+    else:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(_validate_task, tasks))
+    names = set()
+    for result in results:
+        name = result.pop('_postscript_name', None)
+        if name is not None:
+            if name in names:
+                result['errors'].append(f'Duplicate PostScript name: {name}')
+                result['valid'] = False
+            names.add(name)
+    return results
+
+
+def _validate_paths(root: Path = Path('build'), *, harfbuzz='hb-shape',
+                 config=None, selected=None, paths=None) -> list[dict]:
+    """Revalidate tracked outputs, including manifest hashes and source invariants."""
+    results = []
+    assert paths is not None
     for path in paths:
         try:
             if not path.is_file():
@@ -157,9 +187,7 @@ def validate_all(root: Path = Path('build'), *, harfbuzz='hb-shape',
                     result['errors'].append('Typographic family differs from manifest')
                 if font['OS/2'].usWeightClass != manifest['target']['weight']:
                     result['errors'].append('Weight differs from target')
-                if ps in names:
-                    result['errors'].append(f'Duplicate PostScript name: {ps}')
-                names[ps] = str(path)
+                result['_postscript_name'] = ps
                 cmap = font.getBestCmap() or {}
                 cell = manifest['merge']['cell_width']
                 binary_marks = {cp for cp, name in cmap.items() if name.startswith('kumitype.u')

@@ -49,14 +49,76 @@ Python **3.14以降**と依存パッケージは、システムのPythonでは�
    uv run --locked kumitype build --family code-nf/noto --jobs auto
    ```
 
-3. 全504本が必要な場合は、4ワーカーで一括生成します。
+3. 全504本が必要な場合は、CPUとメモリに合わせた並列数で一括生成します。
 
    ```sh
-   uv run --locked kumitype build-all --jobs 4
+   uv run --locked kumitype build-all --jobs auto
    ```
 
 生成対象と変換設定は`config/build.yaml`、ソースのURL・固定版・SHA-256は`config/sources.lock.toml`にあります。既定の生成先は`build/`です。
-並列数`auto`はCPUと使用可能メモリに基づいて制限されます。`build.worker_memory_mb`と`build.max_jobs`で上限を調整できます。
+
+### 並列数の決まり方
+
+`build` / `build-all` / `validate` / `package`は共通の`--jobs N|auto`を使用します。
+未指定時は`build.jobs`（既定`auto`）に従います。`auto`はCPU数を希望値とし、
+明示した`N`もCPU・メモリ・設定上限のすべてで制限します。
+実際のワーカー数は次の最小値（最低1）です。
+
+- 希望値（`auto`なら論理CPU数）
+- 論理CPU数
+- `floor(使用可能メモリ × 0.8 / (build.worker_memory_mb × 1024²))`
+- `build.max_jobs`（設定した場合）
+
+Linuxでは`/proc/meminfo`の`MemAvailable`を使用します。ページキャッシュは回収可能なので、
+`MemFree`や空き物理ページ数だけで見積もらず、`drop_caches`の実行も不要です。
+取得不能・不正値の場合だけ`SC_AVPHYS_PAGES × SC_PAGE_SIZE`にフォールバックします。
+cgroup v1/v2では現在のグループと祖先の`limit − usage`でも上限を掛けます。
+cgroup内のページキャッシュは安全側にusageへ含めるため、制約の厳しいコンテナでは並列数が下がる場合があります。
+取得情報が全くない場合は2 GiBとして計算します。
+
+ワーカーあたりの既定見積もりは**768 MiB**です。504本の実測ピークRSSの中央値424 MiB・
+最大464 MiBに余裕を持たせ、さらに上記の80%制限を併用しています。
+将来ソースフォントが大きくなった場合やOOMが起きる環境では値を増やしてください。
+
+```yaml
+build:
+  jobs: auto
+  worker_memory_mb: 768
+  max_jobs: 8  # 任意。省略すると設定による上限なし
+```
+
+`--jobs 1`で逐次実行、`--jobs 6`で最大6並列などを指定できます。
+標準エラーに`workers`・`requested`・`cpus`・`available_memory_mib`・`memory_limit`・
+`worker_memory_mb`・`max_jobs`を表示するため、明示値が減らされた理由も確認できます。
+標準出力のJSON形式は変更しません。
+`validate`はTTF単位、`package`はファミリー単位のプロセス並列です。
+検証結果・重複PostScript名の判定は入力順に集約し、ZIPのエントリ順・日時・権限・圧縮設定は固定します。
+
+### 一括実行と時間計測
+
+```sh
+make release JOBS=auto
+make release FAMILY=mono-nf/biz JOBS=4 BUILD_DIR=build-biz DIST_DIR=dist-biz
+# 設定ファイルと出力先も明示できる同等のスクリプト
+uv run --locked python scripts/release.py --config config/build.yaml --jobs auto
+```
+
+build → audit → HarfBuzz必須validate → package → check-packagesを実行します。
+`BASE`・`JP`・`FAMILY`は全工程で同じ選択範囲を使用します。完全ファミリーが必要なため、
+`WEIGHT`・`STYLE`による部分リリースは開始前にエラーにします。
+各工程のコマンド・終了コード・経過秒を`build/pipeline-timings.json`に保存し、
+標準出力・標準エラーは`build/pipeline-<工程>.stdout.log` / `.stderr.log`へ保存します。
+`BUILD_DIR`を変更した場合はその配下です。失敗した工程で停止し、そこまでの計測も残します。
+既存出力を削除しないので、部分リリースの監査には選択対象だけを含む専用のbuild/distを推奨します。
+
+packageでは、TTFの実バイトのSHA-256がマニフェストと一致し、保存済み`validation`が成功・errors空、
+`builder`が現在の実装SHA-256・Python版・依存版と完全一致する場合だけ完全再検証を省略します。
+名前・ファミリー・ウェイトの軽量チェックと、実際にZIPへ入れるバイトのSHA-256確認は常に行います。
+記録欠落・不正・provenance不一致は従来の`validate()`へ戻り、TTFハッシュ不一致でも完全再検証を実行しますが、成功しても不一致自体は救済せず拒否します。
+再利用時はビルド時のベース比較結果を信頼し、ソースフォントの再検証やHarfBuzzの再実行はしません。
+HarfBuzz必須の配布前確認は前段の`validate --require-harfbuzz`が担います。
+マニフェストはローカルの信頼済みビルド記録であり、第三者がTTFと記録を同時に改ざんできる状況への署名検証ではありません。
+
 
 ## ファミリーを指定してビルドする
 
@@ -137,13 +199,17 @@ uv run --locked kumitype package --all
 ```
 
 ZIPは`dist/`に保存します。
+配布用マニフェストとその`config_sha256`からは、実行時の`build.jobs`・
+`build.worker_memory_mb`・`build.max_jobs`・`build.fail_on_error`を除外します。
+これらの値の追加・削除・変更や並列度を変えた再ビルドでも、フォント内容・実装・入力が同じならZIPは一致します。
+`build.output_format`など内容に関わる設定と未知の将来設定は保持し、元のbuildマニフェストには実行設定も残します。
 少数ビルドでは`audit`にも同じセレクタを渡してください。
 表示確認・ZIP監査・ゴール判定の詳細は[検証ガイド](VALIDATION.md)を参照してください。
 
 別の生成先を使う場合は、`build-all`の`--output-dir`と、検証・パッケージ化の`--build-dir`に同じパスを指定します。`package`の`--output-dir`はZIPの保存先です。
 
 > [!NOTE]
-> 8コアVMでの全数実測は生成約26分、監査・検証・パッケージ化を含め計約2時間16分です。並列数やキャッシュで変わります。確認範囲は[検証状況](ACCEPTANCE_STATUS.md)を参照してください。
+> 8 vCPU / 約15 GiB VMの全504本実測（変換キャッシュ保持、`drop_caches`なし）は、`auto`＝8並列で **21分30秒**です。build 12分56秒、audit 2秒、HarfBuzz必須validate 7分23秒、package 32秒、check-packages 38秒でした。`jobs=7`・`worker_memory_mb=640`・`max_jobs=7`・`fail_on_error=false`で空の出力先へ再生成しても、TTF 504本・ZIP 42個のSHA-256は全一致し、総時間は24分33秒でした。入力・ホスト負荷・キャッシュで変わるため保証値ではありません。
 
 ## 設定・パス・キャッシュ
 
