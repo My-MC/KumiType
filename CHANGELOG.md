@@ -12,6 +12,11 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 
 ### 追加
 
+- `v*`タグで全504 TTF・42 ZIPを検証し、来歴証明と`SHA256SUMS`を添えて下書きGitHub Releaseを作るワークフローを追加しました。
+  手動の`dry_run=true`はReleaseを作らず、公開は保守者が手動で行います。
+- 手動ビルドを共通の`workflow_call`へ切り出し、入力セレクタを維持しました。
+  バージョン・CHANGELOG節の確認、設定由来の7書体matrix、成果物集約監査と[リリース手順](docs/RELEASING.md)を追加しました。
+
 - `validate`・`package`に共通の`--jobs N|auto`を追加し、TTF検証・ファミリーZIP生成をプロセス並列化しました。レポート順序とZIP再現性は維持します。
 - `make release`と`scripts/release.py`で同じ対象選択のbuild→audit→HarfBuzz必須validate→package→check-packagesを実行し、工程別の経過時間・終了コードを`pipeline-timings.json`へ保存します。
 

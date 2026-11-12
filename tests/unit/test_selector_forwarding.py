@@ -32,7 +32,11 @@ def test_workflow_shell_preserves_selector_arguments(tmp_path):
     workflow = yaml.safe_load((ROOT / '.github/workflows/build.yaml').read_text())
     dispatch = workflow.get('on', workflow.get(True))['workflow_dispatch']
     assert set(dispatch['inputs']) == {'families', 'bases', 'japanese_fonts'}
-    step = next(step for step in workflow['jobs']['build']['steps']
+    caller = workflow['jobs']['build']
+    assert caller['uses'] == './.github/workflows/build-fonts.yaml'
+    assert caller['with'] == {key: '${{ inputs.' + key + ' }}' for key in dispatch['inputs']}
+    reusable = yaml.safe_load((ROOT / '.github/workflows/build-fonts.yaml').read_text())
+    step = next(step for step in reusable['jobs']['build']['steps']
                 if step.get('name') == 'Build, audit, validate and package selected families')
     assert '${{ inputs.' not in step['run']  # Inputs must enter through env, not shell interpolation.
     for families, bases, jp in [('', '', ''), ('KumiType BIZ Mono NF,mono/plex', 'mono-nf,mono', 'biz,plex'),
@@ -45,7 +49,7 @@ def test_workflow_shell_preserves_selector_arguments(tmp_path):
                                 capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
         calls = [json.loads(line) for line in result.stdout.splitlines()]
-        assert [call[3] for call in calls] == ['list', 'build', 'audit', 'validate', 'package']
+        assert [call[2:4] for call in calls] == [['kumitype', 'list'], ['python', 'scripts/release.py']]
         for call in calls:
             for option, value in [('--family', families), ('--base', bases), ('--jp', jp)]:
                 if value:

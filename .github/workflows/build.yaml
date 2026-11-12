@@ -17,57 +17,12 @@ on:
         required: false
         default: ''
         type: string
+permissions:
+  contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: '3.14.7'
-          enable-cache: true
-          version: "0.13.5"
-      - run: uv sync --locked --extra dev
-      - uses: actions/cache@v4
-        with:
-          path: cache
-          key: sources-${{ hashFiles('config/sources.lock.toml') }}
-      - run: sudo apt-get update && sudo apt-get install -y fontconfig libharfbuzz-bin
-      - run: uv run --locked kumitype fetch
-      - name: Build, audit, validate and package selected families
-        env:
-          FAMILIES: ${{ inputs.families }}
-          BASES: ${{ inputs.bases }}
-          JAPANESE_FONTS: ${{ inputs.japanese_fonts }}
-        shell: bash
-        run: |
-          selectors=()
-          [[ -z "$FAMILIES" ]] || selectors+=(--family "$FAMILIES")
-          [[ -z "$BASES" ]] || selectors+=(--base "$BASES")
-          [[ -z "$JAPANESE_FONTS" ]] || selectors+=(--jp "$JAPANESE_FONTS")
-          uv run --locked kumitype list "${selectors[@]}"
-          uv run --locked kumitype build "${selectors[@]}" --jobs auto
-          uv run --locked kumitype audit "${selectors[@]}"
-          uv run --locked kumitype validate "${selectors[@]}" --require-harfbuzz --jobs auto
-          uv run --locked kumitype package "${selectors[@]}" --jobs auto
-      # Independent 28-font acceptance subset; universal includes OpenType checks.
-      - if: inputs.families == '' && inputs.bases == '' && inputs.japanese_fonts == ''
-        run: uv run --locked python scripts/check-goal.py --only G7 --build-dir build-quality > build-quality-goal.json
-      # Partial runs inspect only built families; do not build unrelated G7 inputs.
-      - if: inputs.families != '' || inputs.bases != '' || inputs.japanese_fonts != ''
-        run: uv run --locked python scripts/check-fontbakery.py --build-dir build --output-dir build-quality/fontbakery
-      - run: uv run --locked python scripts/check-packages.py
-      - run: uv run --locked python scripts/generate-preview.py
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: font-build-reports
-          path: |
-            build/build-report.*
-            build/validation-report.*
-            build/shaping-report.json
-            build/preview.html
-            build-quality-goal.json
-            build-quality/fontbakery/
-            dist/*.zip
+    uses: ./.github/workflows/build-fonts.yaml
+    with:
+      families: ${{ inputs.families }}
+      bases: ${{ inputs.bases }}
+      japanese_fonts: ${{ inputs.japanese_fonts }}
