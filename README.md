@@ -66,6 +66,7 @@ uv run --locked kumitype build --family mono-nf/biz --jobs auto
 | HarfBuzz・パッケージ・ゴール判定 | [検証ガイド](docs/VALIDATION.md) |
 | 固定ソースの取得・更新・手動登録 | [ソースフォント](docs/FONT_SOURCES.md) |
 | MIT / OFL・再配布条件 | [ライセンス](docs/LICENSES.md) |
+| タグ・候補版・draft公開・来歴証明 | [リリース手順](docs/RELEASING.md) |
 | 設計・検証記録・初期仕様 | [ドキュメント一覧](docs/README.md) |
 
 ## 開発者向け

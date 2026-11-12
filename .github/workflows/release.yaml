@@ -1,0 +1,138 @@
+name: Draft release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Validation only; dispatch must always use true'
+        type: boolean
+        required: true
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.metadata.outputs.matrix }}
+      epoch: ${{ steps.metadata.outputs.epoch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Refuse non-dry dispatch
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        run: echo 'Only tag pushes may create a draft release' >&2; exit 1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14.7'
+          enable-cache: true
+          version: '0.13.5'
+      - run: uv sync --locked --extra dev
+      - run: sudo apt-get update && sudo apt-get install -y libharfbuzz-bin
+      - run: uv run --locked ruff check src tests scripts
+      - run: uv run --locked mypy src
+      - run: uv run --locked pytest
+      - id: metadata
+        name: Verify versions and CHANGELOG, generate matrix and notes
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          args=()
+          if [[ "$EVENT" == push && "$REF_TYPE" == tag ]]; then
+            args+=(--tag "$TAG")
+          else
+            args+=(--dry-run)
+          fi
+          uv run --locked python scripts/release-support.py preflight "${args[@]}" --output build-release > build-metadata.json
+          echo "matrix=$(jq -c .matrix build-metadata.json)" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git show -s --format=%ct HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: build-release/release-notes.md
+          if-no-files-found: error
+  build:
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.preflight.outputs.matrix) }}
+    uses: ./.github/workflows/build-fonts.yaml
+    with:
+      japanese_fonts: ${{ matrix.jp }}
+      artifact_name: font-build-${{ matrix.jp }}
+      source_date_epoch: ${{ needs.preflight.outputs.epoch }}
+      quality_checks: false
+  finalize:
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14.7'
+          enable-cache: true
+          version: '0.13.5'
+      - run: uv sync --locked --extra dev
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: font-build-*
+          path: artifacts
+          merge-multiple: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: build-release
+      - name: Check exact 42 ZIP / 504 TTF inventory and generate SHA256SUMS
+        run: |
+          uv run --locked python scripts/release-support.py assemble --artifacts artifacts
+          uv run --locked python scripts/check-packages.py
+          (cd dist && sha256sum --check SHA256SUMS)
+          cat dist/release-inventory.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Attest ZIP provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/release-inventory.json
+            build-release/release-notes.md
+      - name: Create or replace assets of draft only
+        if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # A failed API read must not be mistaken for a missing release.
+          gh api --paginate "repos/$GH_REPO/releases" > build-release/releases.json
+          existing=$(jq -rs --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)] | length' build-release/releases.json)
+          if [[ "$existing" != 0 ]]; then
+            draft=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+            [[ "$draft" == true ]] || { echo 'Refusing to overwrite a published release' >&2; exit 1; }
+            gh release upload "$TAG" dist/*.zip dist/SHA256SUMS --clobber
+          else
+            flags=(--draft --verify-tag --notes-file build-release/release-notes.md)
+            [[ "$TAG" != *-* ]] || flags+=(--prerelease)
+            gh release create "$TAG" "${flags[@]}" dist/*.zip dist/SHA256SUMS
+          fi
+          [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == true ]]
