@@ -199,6 +199,10 @@ uv run --locked kumitype package --all
 ```
 
 ZIPは`dist/`に保存します。
+配布用マニフェストとその`config_sha256`からは、実行時の`build.jobs`・
+`build.worker_memory_mb`・`build.max_jobs`・`build.fail_on_error`を除外します。
+これらの値の追加・削除・変更や並列度を変えた再ビルドでも、フォント内容・実装・入力が同じならZIPは一致します。
+`build.output_format`など内容に関わる設定と未知の将来設定は保持し、元のbuildマニフェストには実行設定も残します。
 少数ビルドでは`audit`にも同じセレクタを渡してください。
 表示確認・ZIP監査・ゴール判定の詳細は[検証ガイド](VALIDATION.md)を参照してください。
 

@@ -59,6 +59,7 @@ Cascadiaの6種類を「ベース系列」、日本語の7種類を「日本語�
 ### 修正
 
 - Linuxの使用可能メモリを回収可能なページキャッシュを含む`MemAvailable`で見積もるようにし、cgroup v1/v2の現在グループ・祖先の上限も考慮します。既定のワーカー見積もりを実測最大RSS 464 MiBから余裕を持たせた768 MiBへ変更し、決定した並列数と根拠を標準エラーへ表示します。
+- ZIP同梱マニフェストと配布用`config_sha256`から、フォント内容に影響しない`build.jobs`・`worker_memory_mb`・`max_jobs`・`fail_on_error`を除外しました。元の診断マニフェストと内容設定は保持し、並列度を変えた再ビルドのZIP一致を検査します。
 - packageの完全再検証は、同じTTF SHA-256と現在のbuilder provenanceを持つ成功記録がある場合のみ省略します。記録なし・不一致は従来検証へ戻り、実際のZIP格納バイトもハッシュ照合します。手動フルビルドCIの並列数を`auto`に統一しました。
 
 - 生成フォントから `DSIG` を除去し、JIS/Japanコードページbit 17、ベンダーID `NONE`、`project.version` 由来の `head.fontRevision` を設定しました。validatorで4種類の個別違反を検出し、16.16固定小数点の丸めとマニフェストに基づく再検証を統一しました（[PR #1](https://github.com/My-MC/KumiType/pull/1)）。

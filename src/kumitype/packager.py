@@ -41,6 +41,14 @@ def packaged_manifest(manifest: dict) -> dict:
         return value
 
     result = portable(manifest)
+    # Scheduling affects execution, not font content. Keep content-affecting
+    # build options (and any unknown future keys) in distribution provenance.
+    build = result.get('config', {}).get('build')
+    if isinstance(build, dict):
+        for key in ('jobs', 'worker_memory_mb', 'max_jobs', 'fail_on_error'):
+            build.pop(key, None)
+        if not build:
+            result['config'].pop('build')
     if 'config_sha256' in result:
 
         result['config_sha256'] = hashlib.sha256(json.dumps(

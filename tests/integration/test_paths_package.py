@@ -155,6 +155,24 @@ def test_package_parallel_bytes(project, monkeypatch):
     assert {p.name: p.read_bytes() for p in (project / 'dist').glob('*.zip')} == original
 
 
+def test_rebuild_tuning_preserves_ttf_and_zip_bytes(project, monkeypatch):
+    add_second_base(project)
+    assert invoke(monkeypatch, project, 'build', '--jobs', '1') == 0
+    assert invoke(monkeypatch, project, 'package', '--jobs', '1') == 0
+    first = {str(p.relative_to(project)): p.read_bytes()
+             for folder, pattern in [('build', '*.ttf'), ('dist', '*.zip')]
+             for p in (project / folder).rglob(pattern)}
+    assert len(first) == 4
+    config = yaml.safe_load((project / 'build.yaml').read_text())
+    config['build'] = dict(jobs=2, worker_memory_mb=640, max_jobs=2, fail_on_error=False)
+    (project / 'build.yaml').write_text(yaml.safe_dump(config))
+    assert invoke(monkeypatch, project, 'build') == 0
+    assert invoke(monkeypatch, project, 'package') == 0
+    assert {path: (project / path).read_bytes() for path in first} == first
+    manifest = json.loads(next((project / 'build').rglob('*.ttf')).with_suffix('.json').read_text())
+    assert manifest['config']['build'] == config['build']  # diagnostics remain intact
+
+
 def test_validation_parallel_matches_serial(project, monkeypatch):
     from kumitype.config import load
     from kumitype.validator import validate_all
